@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "telerobot"
+version = "0.1.0"
+description = ""
+package-mode = false
+authors = ["Vlad Fatu <colegu123@gmail.com>"]
+
+packages = [
+    { include = "base" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[tool.poetry.group.dev.dependencies]
+lerobot = "0.4.3"
+feetech-servo-sdk = "^1.0.0"
+hebi-py = "^2.8.0"
+teleop = "^0.1.0"
+placo = "^0.9.6"
+ipykernel = "^6.30.0"
+
+asyncio = "^4.0.0"
+websockets = "^15.0.1"
+numpy = "^2.3.4"
+
+# WebRTC dependencies
+aiortc = "^1.8.0"
+aiohttp = "^3.10.0"
+aiohttp-cors = "^0.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
