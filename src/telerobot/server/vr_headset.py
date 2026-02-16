@@ -5,6 +5,8 @@ import threading
 from pathlib import Path
 import websockets
 
+from telerobot import PACKAGE_DIR
+
 
 def create_ssl_context(cert_file: str, key_file: str):
     """Create SSL context for WSS (secure WebSocket)."""
@@ -28,11 +30,11 @@ class VRHeadset:
         self.use_ssl = use_ssl
         self.ssl_context = None
         
-        # Default certificate paths (relative to project root)
+        # Default certificate paths (relative to CWD)
         if cert_file is None:
-            cert_file = Path(__file__).parent.parent / "ssl_cert" / "server.crt"
+            cert_file = Path("ssl_cert") / "server.crt"
         if key_file is None:
-            key_file = Path(__file__).parent.parent / "ssl_cert" / "server.key"
+            key_file = Path("ssl_cert") / "server.key"
         
         if use_ssl and Path(cert_file).exists() and Path(key_file).exists():
             self.ssl_context = create_ssl_context(str(cert_file), str(key_file))

@@ -15,6 +15,8 @@ from aiohttp import web, web_request
 from aiohttp_cors import setup as cors_setup, ResourceOptions
 import av
 
+from telerobot import PACKAGE_DIR
+
 
 class CameraStreamTrack(VideoStreamTrack):
     """Custom video track that streams camera frames."""
@@ -80,9 +82,8 @@ class WebRTCCameraServer:
         self.app.router.add_get("/cameras", self.get_cameras)
         self.app.router.add_get("/health", self.health_check)
         
-        # Serve static files from web-ui folder
-        script_dir = Path(__file__).parent.parent  # Go up to project root
-        web_ui_path = script_dir / "web-ui"
+        # Serve static files from web_ui folder (bundled in package)
+        web_ui_path = PACKAGE_DIR / "web_ui"
         if web_ui_path.exists():
             self.app.router.add_static("/js/", web_ui_path / "js", name="js")
         
@@ -106,11 +107,7 @@ class WebRTCCameraServer:
     
     async def index(self, request):
         """Serve the main HTML page from web-ui folder."""
-        import os
-        
-        # Get the project root directory (parent of server folder)
-        script_dir = Path(__file__).parent.parent
-        html_path = script_dir / 'web-ui' / 'index.html'
+        html_path = PACKAGE_DIR / 'web_ui' / 'index.html'
         
         try:
             with open(html_path, 'r', encoding='utf-8') as f:

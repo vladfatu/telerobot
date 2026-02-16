@@ -2,15 +2,22 @@
 name = "telerobot"
 version = "0.1.0"
 description = ""
-package-mode = false
 authors = ["Vlad Fatu <colegu123@gmail.com>"]
 
 packages = [
-    { include = "base" }
+    { include = "telerobot", from = "src" }
 ]
+include = [
+    { path = "src/telerobot/robots/**/*", format = ["sdist", "wheel"] },
+    { path = "src/telerobot/web_ui/**/*", format = ["sdist", "wheel"] },
+]
+
+[tool.poetry.scripts]
+telerobot = "telerobot.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
+pyyaml = "^6.0.3"
 
 [tool.poetry.group.dev.dependencies]
 lerobot = "0.4.3"
