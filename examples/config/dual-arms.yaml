@@ -1,0 +1,30 @@
+# Telerobot Configuration
+# Copy this file to config.yaml and adjust to match your setup.
+
+robot:
+  id: duo_robot
+  fps: 30
+
+cameras:
+  left_wrist:
+    index: 1
+    width: 640
+    height: 480
+  right_wrist:
+    index: 0
+    width: 640
+    height: 480
+  main:
+    index: 2
+    width: 640
+    height: 480
+
+arms:
+  left:
+    port: /dev/tty.usbmodem5A460842561
+    use_degrees: true
+    cameras: [left_wrist, right_wrist, main]   # which cameras are attached to this arm
+  right:
+    port: /dev/tty.usbmodem58FA0963791
+    use_degrees: true
+    cameras: []
