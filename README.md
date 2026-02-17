@@ -1,4 +1,4 @@
-# Telerobot
+# TeLeRobot
 
 VR teleoperation for dual SO-ARM101 robots using a Meta Quest headset.
 
