@@ -5,12 +5,17 @@ import numpy as np
 import copy
 import threading
 
+from abc import ABC, abstractmethod
+
 from lerobot.model.kinematics import RobotKinematics
 from lerobot.processor import RobotAction, RobotObservation, RobotProcessorPipeline
 from lerobot.processor.converters import (
     robot_action_observation_to_transition,
     transition_to_robot_action,
 )
+from lerobot.robots.robot import Robot
+from lerobot.robots.so_follower.so_follower import SOFollower
+from lerobot.robots.bi_so_follower.bi_so_follower import BiSOFollower
 from lerobot.robots.so_follower.robot_kinematic_processor import (
     EEBoundsAndSafety,
     EEReferenceAndDelta,
@@ -21,7 +26,7 @@ from lerobot.utils.robot_utils import precise_sleep
 from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
 from telerobot import PACKAGE_DIR
-from telerobot.config import load_robot
+from telerobot.config import RobotConfig, load_robot
 from telerobot.server import VRHeadset, create_camera_server
 from telerobot.vr_processor import MapVRActionToRobotAction
 
@@ -39,7 +44,7 @@ def get_kinematics_solver(motor_names: list[str]) -> RobotKinematics:
     # Regularization prevents singularity-induced oscillation at full extension.
     # The L2 penalty on ||dq||² keeps the QP well-conditioned so the solver
     # returns a stable, unique solution near workspace boundaries.
-    kin.solver.add_regularization_task(2e-3)
+    kin.solver.add_regularization_task(1e-3)
     return kin
 
 
@@ -73,6 +78,159 @@ def get_vr_to_arm_processor(motor_names: list[str]) -> RobotProcessorPipeline[tu
     )
 
 
+def setup_camera_server(robot) -> None:
+    """Initialize and start the WebRTC camera server in a background thread."""
+    use_https = True  # Set to False for HTTP
+    cert_file = "ssl_cert/server.crt"
+    key_file = "ssl_cert/server.key"
+
+    camera_server = create_camera_server(
+        robot.cameras.keys(),
+        use_https=use_https,
+        cert_file=cert_file,
+        key_file=key_file
+    )
+
+    server_thread = threading.Thread(target=camera_server.run_in_thread, daemon=True)
+    server_thread.start()
+
+    if use_https:
+        print("🔒 HTTPS WebRTC camera server started on https://0.0.0.0:8765")
+        print("📱 Access from Quest 3: https://YOUR_IP:8765")
+    else:
+        print("🎥 HTTP WebRTC camera server started on http://0.0.0.0:8765")
+
+    return camera_server
+
+
+def setup_websocket_teleop() -> VRHeadset:
+    """Create and connect the VR headset WebSocket teleop device."""
+    teleop_device = VRHeadset()
+    teleop_device.connect()
+    return teleop_device
+
+
+class FollowerController(ABC):
+    """Base class for VR teleop controllers that manage processors and arm dispatch."""
+
+    def __init__(self, robot: Robot, cfg: RobotConfig):
+        self.robot = robot
+        self.cfg = cfg
+        self.has_initial_position = True
+
+    @abstractmethod
+    def _build_processors(self) -> None:
+        """Create VR-to-arm processor pipelines."""
+
+    @abstractmethod
+    def capture_initial_observations(self) -> None:
+        """Capture the initial arm observations used for reset."""
+
+    @abstractmethod
+    def reset(self) -> None:
+        """Reset the robot to its initial position and rebuild processors."""
+
+    @abstractmethod
+    def get_arm_observations(self) -> dict[str, RobotObservation]:
+        """Return per-arm observations keyed by arm name."""
+
+    @abstractmethod
+    def process_vr_observation(self, vr_obs: dict) -> None:
+        """Dispatch a VR observation to the appropriate arms."""
+
+
+class SingleFollowerController(FollowerController):
+    """Controller for a single SOFollower arm."""
+
+    def __init__(self, robot: Robot, cfg: RobotConfig):
+        super().__init__(robot, cfg)
+        self.arm_name = next(iter(cfg.arms))  # "left" or "right" — matches VR controller side
+        self._build_processors()
+
+    def _build_processors(self) -> None:
+        self.processor = get_vr_to_arm_processor(list(self.robot.bus.motors.keys()))
+
+    def capture_initial_observations(self) -> None:
+        self.initial_obs = self.robot.get_observation()
+
+    def reset(self) -> None:
+        print("Resetting robot to initial position...")
+        self.robot.send_action(self.initial_obs)
+        self._build_processors()
+        self.has_initial_position = True
+
+    def get_arm_observations(self) -> dict[str, RobotObservation]:
+        return {self.arm_name: self.robot.get_observation()}
+
+    def process_vr_observation(self, vr_obs: dict) -> None:
+        controller_obs = copy.deepcopy(vr_obs[self.arm_name])
+
+        if controller_obs["enabled"]:
+            self.has_initial_position = False
+            print(f"{self.arm_name.capitalize()} Arm VR Position: {controller_obs['pos']}")
+        else:
+            print(f"{self.arm_name.capitalize()} controller not enabled.")
+
+        obs = self.robot.get_observation()
+        joint_action = self.processor((controller_obs, obs))
+        self.robot.send_action(joint_action)
+
+
+class BiFollowerController(FollowerController):
+    """Controller for a BiSOFollower (dual-arm) robot."""
+
+    def __init__(self, robot: Robot, cfg: RobotConfig):
+        super().__init__(robot, cfg)
+        self._build_processors()
+
+    def _build_processors(self) -> None:
+        self.processors = {
+            "left": get_vr_to_arm_processor(list(self.robot.left_arm.bus.motors.keys())),
+            "right": get_vr_to_arm_processor(list(self.robot.right_arm.bus.motors.keys())),
+        }
+
+    def capture_initial_observations(self) -> None:
+        self.initial_left_obs = self.robot.left_arm.get_observation()
+        self.initial_right_obs = self.robot.right_arm.get_observation()
+
+    def reset(self) -> None:
+        print("Resetting robot to initial position...")
+        self.robot.right_arm.send_action(self.initial_right_obs)
+        self.robot.left_arm.send_action(self.initial_left_obs)
+        self._build_processors()
+        self.has_initial_position = True
+
+    def get_arm_observations(self) -> dict[str, RobotObservation]:
+        return {
+            "left": self.robot.left_arm.get_observation(),
+            "right": self.robot.right_arm.get_observation(),
+        }
+
+    def process_vr_observation(self, vr_obs: dict) -> None:
+        for side in ("right", "left"):
+            arm = getattr(self.robot, f"{side}_arm")
+            controller_obs = copy.deepcopy(vr_obs[side])
+
+            if controller_obs["enabled"]:
+                self.has_initial_position = False
+                print(f"{side.capitalize()} Arm VR Position: {controller_obs['pos']}")
+            else:
+                print(f"{side.capitalize()} controller not enabled.")
+
+            obs = arm.get_observation()
+            joint_action = self.processors[side]((controller_obs, obs))
+            arm.send_action(joint_action)
+
+
+def build_controller(robot: Robot, cfg: RobotConfig) -> FollowerController:
+    """Create the appropriate controller based on the robot type."""
+    if isinstance(robot, SOFollower):
+        return SingleFollowerController(robot, cfg)
+    if isinstance(robot, BiSOFollower):
+        return BiFollowerController(robot, cfg)
+    raise TypeError(f"Unsupported robot type: {type(robot).__name__}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Telerobot — VR teleoperation for SO-ARM101")
     parser.add_argument(
@@ -84,82 +242,32 @@ def main():
 
     duo_robot, cfg = load_robot(args.config)
 
-    teleop_device = VRHeadset()
+    camera_server = setup_camera_server(duo_robot)
+    teleop_device = setup_websocket_teleop()
 
-    # Initialize WebRTC camera server with HTTPS
-    use_https = True  # Set to False for HTTP
-    cert_file = "ssl_cert/server.crt"
-    key_file = "ssl_cert/server.key"
+    controller = build_controller(duo_robot, cfg)
 
-    camera_server = create_camera_server(
-        duo_robot.cameras.keys(),
-        use_https=use_https,
-        cert_file=cert_file,
-        key_file=key_file
-    )
-
-    # Start camera server in background thread
-    server_thread = threading.Thread(target=camera_server.run_in_thread, daemon=True)
-    server_thread.start()
-
-    if use_https:
-        print("🔒 HTTPS WebRTC camera server started on https://0.0.0.0:8765")
-        print("📱 Access from Quest 3: https://YOUR_IP:8765")
-    else:
-        print("🎥 HTTP WebRTC camera server started on http://0.0.0.0:8765")
-
-    processors = {
-        "left_arm": get_vr_to_arm_processor(list(duo_robot.left_arm.bus.motors.keys())),
-        "right_arm": get_vr_to_arm_processor(list(duo_robot.right_arm.bus.motors.keys())),
-        "has_initial_position": True
-    }
-
-    # Connect to the robot and teleoperator
+    # Connect to the robot
     duo_robot.connect()
-    teleop_device.connect()
 
     # Init rerun viewer
-    init_rerun(session_name="vr_lerobot_duo_teleop")
+    init_rerun(session_name="vr_lerobot_teleop")
 
     if not duo_robot.is_connected or not teleop_device.is_connected:
         raise ValueError("Robot or teleop is not connected!")
 
-    initial_right_arm_obs = duo_robot.right_arm.get_observation()
-    initial_left_arm_obs = duo_robot.left_arm.get_observation()
-
-    def reset_robot_to_initial_position():
-        print("Resetting robot to initial position...")
-        _ = duo_robot.right_arm.send_action(initial_right_arm_obs)
-        _ = duo_robot.left_arm.send_action(initial_left_arm_obs)
-
-        processors["left_arm"] = get_vr_to_arm_processor(list(duo_robot.left_arm.bus.motors.keys()))
-        processors["right_arm"] = get_vr_to_arm_processor(list(duo_robot.right_arm.bus.motors.keys()))
-        processors["has_initial_position"] = True
+    controller.capture_initial_observations()
 
     print("Starting teleop loop. Move your phone to teleoperate the robot...")
     while True:
         t0 = time.perf_counter()
 
-        # Get robot observation
-        right_arm_obs = duo_robot.right_arm.get_observation()
-        left_arm_obs = duo_robot.left_arm.get_observation()
-        # robot_obs = {'shoulder_pan.pos': 1.3186813186813187, 'shoulder_lift.pos': -20.703296703296704, 'elbow_flex.pos': 8.131868131868131, 'wrist_flex.pos': 60.35164835164835, 'wrist_roll.pos': 8.483516483516484, 'gripper.pos': 1.2303485987696514}
-
         # Capture and stream camera frames
         try:
-            # Get frames from cameras
-            left_wrist_frame = duo_robot.cameras["left_wrist"].async_read(timeout_ms=50)
-            right_wrist_frame = duo_robot.cameras["right_wrist"].async_read(timeout_ms=50)
-            main_frame = duo_robot.cameras["main"].async_read(timeout_ms=500)
-
-            # Update WebRTC streams
-            if left_wrist_frame is not None:
-                camera_server.update_camera_frame("left_wrist", left_wrist_frame)
-            if right_wrist_frame is not None:
-                camera_server.update_camera_frame("right_wrist", right_wrist_frame)
-            if main_frame is not None:
-                camera_server.update_camera_frame("main", main_frame)
-
+            for cam_name, cam in duo_robot.cameras.items():
+                frame = cam.async_read(timeout_ms=50)
+                if frame is not None:
+                    camera_server.update_camera_frame(cam_name, frame)
         except Exception as e:
             print(f"Error capturing camera frames: {e}")
 
@@ -167,46 +275,12 @@ def main():
         vr_obs = teleop_device.last_observation
 
         if vr_obs is None:
-            # print("No VR observation received yet.")
-            # log_rerun_data(observation=left_arm_obs, action=None)
             log_rerun_data(observation=duo_robot.get_observation(), action=None)
-        elif vr_obs['reset'] and not processors["has_initial_position"]:
-            reset_robot_to_initial_position()
+        elif vr_obs['reset'] and not controller.has_initial_position:
+            controller.reset()
         else:
             print("VR Observation: ", vr_obs)
-
-            right_controller_obs = copy.deepcopy(vr_obs["right"])
-            # print(f"VR Observation: {right_controller_obs}")
-
-            if right_controller_obs["enabled"]:
-                processors["has_initial_position"] = False
-                print(f"Right Arm VR Position: {right_controller_obs['pos']}")
-            else:
-                print("Right controller not enabled.")
-
-            right_joint_action = processors["right_arm"]((right_controller_obs, right_arm_obs))
-            _ = duo_robot.right_arm.send_action(right_joint_action)
-
-
-            left_controller_obs = copy.deepcopy(vr_obs["left"])
-            # print(f"VR Observation: {left_controller_obs}")
-
-            if left_controller_obs["enabled"]:
-                processors["has_initial_position"] = False
-                print(f"Left Arm VR Position: {left_controller_obs['pos']}")
-            else:
-                print("Left controller not enabled.")
-
-            left_joint_action = processors["left_arm"]((left_controller_obs, left_arm_obs))
-            _ = duo_robot.left_arm.send_action(left_joint_action)
-
-            # # Add prefixes back
-            # prefixed_send_action_left = {f"left_{key}": value for key, value in left_joint_action.items()}
-            # prefixed_send_action_right = {f"right_{key}": value for key, value in right_joint_action.items()}
-
-            # joint_action = {**prefixed_send_action_left, **prefixed_send_action_right}
-
-            # _ = duo_robot.send_action(joint_action)
+            controller.process_vr_observation(vr_obs)
 
         # busy_wait(max(1.0 / FPS - (time.perf_counter() - t0), 0.0))
 

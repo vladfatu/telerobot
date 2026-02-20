@@ -8,7 +8,9 @@ from typing import Any
 
 import yaml
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
-from lerobot.robots.so_follower.config_so_follower import SOFollowerConfig
+from lerobot.robots.robot import Robot
+from lerobot.robots.so_follower import SOFollower
+from lerobot.robots.so_follower.config_so_follower import SOFollowerConfig, SOFollowerRobotConfig
 from lerobot.robots.bi_so_follower.config_bi_so_follower import BiSOFollowerConfig
 from lerobot.robots.bi_so_follower.bi_so_follower import BiSOFollower
 
@@ -95,8 +97,11 @@ def load_config(path: str | Path) -> RobotConfig:
     )
 
 
-def load_robot(path: str | Path) -> tuple[BiSOFollower, RobotConfig]:
-    """Load config and build a ready-to-use BiSOFollower robot.
+def load_robot(path: str | Path) -> tuple[Robot, RobotConfig]:
+    """Load config and build a ready-to-use robot.
+
+    Returns a BiSOFollower when the config defines two arms ("left" and "right"),
+    or a single SOFollower when only one arm is defined.
 
     Args:
         path: Path to the YAML configuration file.
@@ -124,9 +129,21 @@ def load_robot(path: str | Path) -> tuple[BiSOFollower, RobotConfig]:
             cameras=arm_cameras if arm_cameras else {},
         )
 
-    duo_robot_config = BiSOFollowerConfig(
-        left_arm_config=arm_configs["left"],
-        right_arm_config=arm_configs["right"],
-        id=cfg.id,
-    )
-    return BiSOFollower(duo_robot_config), cfg
+    if len(arm_configs) == 1:
+        # Single-arm configuration
+        arm_name, arm_config = next(iter(arm_configs.items()))
+        single_config = SOFollowerRobotConfig(
+            port=arm_config.port,
+            use_degrees=arm_config.use_degrees,
+            cameras=arm_config.cameras,
+            id=f"{cfg.id}_{arm_name}",
+        )
+        return SOFollower(single_config), cfg
+    else:
+        # Dual-arm configuration
+        duo_robot_config = BiSOFollowerConfig(
+            left_arm_config=arm_configs["left"],
+            right_arm_config=arm_configs["right"],
+            id=cfg.id,
+        )
+        return BiSOFollower(duo_robot_config), cfg

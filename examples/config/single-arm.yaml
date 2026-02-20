@@ -16,7 +16,7 @@ cameras:
     height: 480
 
 arms:
-  right:
+  right: # Use "left" if you want to control the arm with the left VR controller
     port: /dev/tty.usbmodem58FA0963791
     use_degrees: true
     cameras: [wrist, main]
