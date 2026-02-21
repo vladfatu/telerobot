@@ -17,6 +17,15 @@ cameras:
 
 arms:
   right:
+    type: so100
     port: /dev/tty.usbmodem58FA0963791
     use_degrees: true
     cameras: [wrist, main]
+    regularization: 1.0e-3
+    end_effector_step_sizes: { x: 0.5, y: 0.5, z: 0.5 }
+    end_effector_bounds:
+      min: [-1.0, -1.0, -1.0]
+      max: [1.0, 1.0, 1.0]
+    max_ee_step_m: 0.20
+    gripper_speed_factor: 20.0
+

@@ -121,14 +121,14 @@ class WebSocketManager {
    * @param {string} hand - 'left' or 'right'
    * @param {number[]} pos - [x, y, z] position array
    * @param {number[]} rot - [x, y, z, w] quaternion rotation array
-   * @param {number} joystickY - Y-axis joystick value
+   * @param {number} joystickX - X-axis joystick value
    * @param {boolean} enabled - Whether the controller is enabled/grabbing
    */
-  updateControllerData(hand, pos, rot, joystickY = 0, enabled = false) {
+  updateControllerData(hand, pos, rot, joystickX = 0, enabled = false) {
     this.controllerData[hand] = {
       pos: pos,
       rot: rot,
-      joystickY: joystickY,
+      joystickX: joystickX,
       enabled: enabled
     };
   }

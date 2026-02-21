@@ -26,8 +26,16 @@ class CameraConfig:
 @dataclass
 class ArmConfig:
     """Configuration for a single robot arm."""
+    type: str
     port: str
     use_degrees: bool = True
+    regularization: float = 1e-3
+    end_effector_step_sizes: dict[str, float] = field(default_factory=lambda: {"x": 0.5, "y": 0.5, "z": 0.5})
+    end_effector_bounds: dict[str, list[float]] = field(
+        default_factory=lambda: {"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]}
+    )
+    max_ee_step_m: float = 0.20
+    gripper_speed_factor: float = 20.0
     cameras: list[str] = field(default_factory=list)
 
 
@@ -83,8 +91,14 @@ def load_config(path: str | Path) -> RobotConfig:
                     f"Arm '{name}' references camera '{cam_name}' which is not defined in cameras section."
                 )
         arms[name] = ArmConfig(
+            type=arm["type"],
             port=arm["port"],
             use_degrees=arm.get("use_degrees", True),
+            regularization=arm.get("regularization", 1e-3),
+            end_effector_step_sizes=arm.get("end_effector_step_sizes", {"x": 0.5, "y": 0.5, "z": 0.5}),
+            end_effector_bounds=arm.get("end_effector_bounds", {"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]}),
+            max_ee_step_m=arm.get("max_ee_step_m", 0.20),
+            gripper_speed_factor=arm.get("gripper_speed_factor", 20.0),
             cameras=arm_cameras,
         )
 

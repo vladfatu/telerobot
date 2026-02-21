@@ -1,7 +1,24 @@
 from dataclasses import dataclass, field
 
 from lerobot.configs.types import FeatureType, PipelineFeatureType, PolicyFeature
-from lerobot.processor import ProcessorStepRegistry, RobotAction, RobotActionProcessorStep
+from lerobot.model.kinematics import RobotKinematics
+from lerobot.processor import (
+    ProcessorStepRegistry,
+    RobotAction,
+    RobotActionProcessorStep,
+    RobotObservation,
+    RobotProcessorPipeline,
+)
+from lerobot.processor.converters import (
+    robot_action_observation_to_transition,
+    transition_to_robot_action,
+)
+from lerobot.robots.so_follower.robot_kinematic_processor import (
+    EEBoundsAndSafety,
+    EEReferenceAndDelta,
+    GripperVelocityToJoint,
+    InverseKinematicsEEToJoints,
+)
 from lerobot.teleoperators.phone.config_phone import PhoneOS
 from lerobot.utils.rotation import Rotation
 
@@ -40,7 +57,7 @@ class MapVRActionToRobotAction(RobotActionProcessorStep):
         """
         # Pop them from the action
         enabled = bool(action.pop("enabled"))
-        joystickY = action.pop("joystickY")
+        joystickX = action.pop("joystickX")
         pos = action.pop("pos")
         rot = action.pop("rot")
 
@@ -55,7 +72,7 @@ class MapVRActionToRobotAction(RobotActionProcessorStep):
         # pos = [0.0, 0.0, 0.0]
         # rotvec = [0.0, 0.0, 0.0]
 
-        gripper_vel = joystickY
+        gripper_vel = joystickX
         # # Map certain inputs to certain actions
         # if self.platform == PhoneOS.IOS:
         #     gripper_vel = float(inputs.get("a3", 0.0))
@@ -98,3 +115,39 @@ class MapVRActionToRobotAction(RobotActionProcessorStep):
             )
 
         return features
+
+
+def build_vr_to_arm_processor(
+    motor_names: list[str],
+    kinematics_solver: RobotKinematics,
+    end_effector_step_sizes: dict[str, float],
+    end_effector_bounds: dict[str, list[float]],
+    max_ee_step_m: float,
+    gripper_speed_factor: float,
+) -> RobotProcessorPipeline[tuple[RobotAction, RobotObservation], RobotAction]:
+    """Build pipeline to convert VR action to ee pose action to joint action."""
+    return RobotProcessorPipeline[tuple[RobotAction, RobotObservation], RobotAction](
+        steps=[
+            MapVRActionToRobotAction(),
+            EEReferenceAndDelta(
+                kinematics=kinematics_solver,
+                end_effector_step_sizes=end_effector_step_sizes,
+                motor_names=motor_names,
+                use_latched_reference=True,
+            ),
+            EEBoundsAndSafety(
+                end_effector_bounds=end_effector_bounds,
+                max_ee_step_m=max_ee_step_m,
+            ),
+            GripperVelocityToJoint(
+                speed_factor=gripper_speed_factor,
+            ),
+            InverseKinematicsEEToJoints(
+                kinematics=kinematics_solver,
+                motor_names=motor_names,
+                initial_guess_current_joints=True,
+            ),
+        ],
+        to_transition=robot_action_observation_to_transition,
+        to_output=transition_to_robot_action,
+    )

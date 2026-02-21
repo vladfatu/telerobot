@@ -26,8 +26,8 @@ AFRAME.registerComponent('controller-axes', {
     // Determine which hand this controller is
     this.hand = this.el.id === 'right-hand' ? 'right' : 'left';
     
-    // Joystick Y value (thumbstick forward/backward)
-    this.joystickY = 0;
+    // Joystick X value (thumbstick left/right)
+    this.joystickX = 0;
     
     // Current delta values for WebSocket transmission
     this.currentDelta = {
@@ -57,11 +57,11 @@ AFRAME.registerComponent('controller-axes', {
   onThumbstickMoved: function(evt) {
     // Get Y axis value from thumbstick (forward/backward)
     // evt.detail.y is typically -1 (forward) to 1 (backward)
-    if (evt.detail && typeof evt.detail.y === 'number') {
-      this.joystickY = evt.detail.y;
+    if (evt.detail && typeof evt.detail.x === 'number') {
+      this.joystickX = evt.detail.x;
     } else if (evt.detail && evt.detail.axis && evt.detail.axis.length >= 2) {
       // axismove event format: axis[0] = x, axis[1] = y
-      this.joystickY = evt.detail.axis[1];
+      this.joystickX = evt.detail.axis[0];
     }
   },
 
@@ -265,7 +265,7 @@ AFRAME.registerComponent('controller-axes', {
         this.hand,
         pos,
         rot,
-        this.joystickY,
+        this.joystickX,
         enabled
       );
       
