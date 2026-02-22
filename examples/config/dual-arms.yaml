@@ -26,7 +26,7 @@ arms:
     use_degrees: true
     cameras: [left_wrist, right_wrist, main]   # which cameras are attached to this arm
     regularization: 1.0e-3
-    end_effector_step_sizes: { x: 0.5, y: 0.5, z: 0.5 }
+    end_effector_step_sizes: { x: 0.8, y: 0.8, z: 0.8 }
     end_effector_bounds:
       min: [-1.0, -1.0, -1.0]
       max: [1.0, 1.0, 1.0]
@@ -35,11 +35,11 @@ arms:
 arms:
   right:
     type: so100
-    port: /dev/tty.usbmodem58FA0963791
+    port: /dev/tty.usbmodem5A7C1167181
     use_degrees: true
     cameras: []
     regularization: 1.0e-3
-    end_effector_step_sizes: { x: 0.5, y: 0.5, z: 0.5 }
+    end_effector_step_sizes: { x: 0.8, y: 0.8, z: 0.8 }
     end_effector_bounds:
       min: [-1.0, -1.0, -1.0]
       max: [1.0, 1.0, 1.0]
