@@ -21,6 +21,7 @@ class CameraConfig:
     index: int
     width: int = 640
     height: int = 480
+    fps: int = 30
 
 
 @dataclass
@@ -40,12 +41,23 @@ class ArmConfig:
 
 
 @dataclass
+class DatasetConfig:
+    """Configuration for recording episodes to a LeRobot dataset."""
+    repo_id: str
+    single_task: str
+    root: str | None = None
+    num_image_writer_threads_per_camera: int = 4
+    vcodec: str = "libsvtav1"
+
+
+@dataclass
 class RobotConfig:
     """Top-level robot configuration."""
     id: str
     fps: int
     cameras: dict[str, CameraConfig]
     arms: dict[str, ArmConfig]
+    dataset: DatasetConfig | None = None
 
 
 def load_config(path: str | Path) -> RobotConfig:
@@ -78,6 +90,7 @@ def load_config(path: str | Path) -> RobotConfig:
             index=cam["index"],
             width=cam.get("width", 640),
             height=cam.get("height", 480),
+            fps=cam.get("fps", 30),
         )
 
     # Parse arms
@@ -102,12 +115,31 @@ def load_config(path: str | Path) -> RobotConfig:
             cameras=arm_cameras,
         )
 
+    # Parse dataset config (optional)
+    dataset_cfg: DatasetConfig | None = None
+    dataset_section = raw.get("dataset")
+    if dataset_section is not None:
+        repo_id = dataset_section.get("repo_id")
+        single_task = dataset_section.get("single_task")
+        if not repo_id or not single_task:
+            raise ValueError("dataset section requires both 'repo_id' and 'single_task'.")
+        dataset_cfg = DatasetConfig(
+            repo_id=repo_id,
+            single_task=single_task,
+            root=dataset_section.get("root"),
+            num_image_writer_threads_per_camera=dataset_section.get(
+                "num_image_writer_threads_per_camera", 4
+            ),
+            vcodec=dataset_section.get("vcodec", "libsvtav1"),
+        )
+
     robot_section = raw.get("robot", {})
     return RobotConfig(
         id=robot_section.get("id", "duo_robot"),
         fps=robot_section.get("fps", 30),
         cameras=cameras,
         arms=arms,
+        dataset=dataset_cfg,
     )
 
 
@@ -128,7 +160,7 @@ def load_robot(path: str | Path) -> tuple[Robot, RobotConfig]:
     # Build camera configs
     camera_configs = {
         name: OpenCVCameraConfig(
-            index_or_path=cam.index, width=cam.width, height=cam.height, fps=cfg.fps
+            index_or_path=cam.index, width=cam.width, height=cam.height, fps=cam.fps
         )
         for name, cam in cfg.cameras.items()
     }

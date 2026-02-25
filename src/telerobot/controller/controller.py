@@ -3,7 +3,7 @@
 import copy
 from abc import ABC, abstractmethod
 
-from lerobot.processor import RobotObservation
+from lerobot.processor import RobotAction, RobotObservation
 from lerobot.robots.robot import Robot
 from lerobot.robots.so_follower.so_follower import SOFollower
 from lerobot.robots.bi_so_follower.bi_so_follower import BiSOFollower
@@ -54,8 +54,12 @@ class Controller(ABC):
         """Return per-arm observations keyed by arm name."""
 
     @abstractmethod
-    def process_vr_observation(self, vr_obs: dict) -> None:
-        """Dispatch a VR observation to the appropriate arms."""
+    def process_vr_observation(self, vr_obs: dict) -> tuple[RobotObservation, RobotAction] | None:
+        """Dispatch a VR observation to the appropriate arms.
+
+        Returns:
+            A (observation, action) tuple for dataset recording, or None.
+        """
 
 
 class SingleController(Controller):
@@ -85,18 +89,19 @@ class SingleController(Controller):
     def get_arm_observations(self) -> dict[str, RobotObservation]:
         return {self.arm_name: self.robot.get_observation()}
 
-    def process_vr_observation(self, vr_obs: dict) -> None:
+    def process_vr_observation(self, vr_obs: dict) -> tuple[RobotObservation, RobotAction] | None:
         controller_obs = copy.deepcopy(vr_obs[self.arm_name])
 
         if controller_obs["enabled"]:
             self.has_initial_position = False
-            print(f"{self.arm_name.capitalize()} Arm VR Position: {controller_obs['pos']}")
-        else:
-            print(f"{self.arm_name.capitalize()} controller not enabled.")
+            # print(f"{self.arm_name.capitalize()} Arm VR Position: {controller_obs['pos']}")
+        # else:
+            # print(f"{self.arm_name.capitalize()} controller not enabled.")
 
         obs = self.robot.get_observation()
         joint_action = self.processor((controller_obs, obs))
         self.robot.send_action(joint_action)
+        return obs, joint_action
 
 
 class BiController(Controller):
@@ -135,7 +140,10 @@ class BiController(Controller):
             "right": self.robot.right_arm.get_observation(),
         }
 
-    def process_vr_observation(self, vr_obs: dict) -> None:
+    def process_vr_observation(self, vr_obs: dict) -> tuple[RobotObservation, RobotAction] | None:
+        combined_obs: RobotObservation = {}
+        combined_action: RobotAction = {}
+
         for side in ("right", "left"):
             arm = getattr(self.robot, f"{side}_arm")
             controller_obs = copy.deepcopy(vr_obs[side])
@@ -149,6 +157,17 @@ class BiController(Controller):
             obs = arm.get_observation()
             joint_action = self.processors[side]((controller_obs, obs))
             arm.send_action(joint_action)
+
+            combined_obs.update(obs)
+            combined_action.update(joint_action)
+
+        # Add camera observations from the full robot
+        full_obs = self.robot.get_observation()
+        for key in full_obs:
+            if key not in combined_obs:
+                combined_obs[key] = full_obs[key]
+
+        return combined_obs, combined_action
 
 
 def build_controller(robot: Robot, cfg: RobotConfig) -> Controller:
