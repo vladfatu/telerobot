@@ -16,6 +16,7 @@ from aiohttp_cors import setup as cors_setup, ResourceOptions
 import av
 
 from telerobot import PACKAGE_DIR
+from telerobot.logger import log_message
 
 
 class CameraStreamTrack(VideoStreamTrack):
@@ -242,6 +243,31 @@ def create_camera_server(camera_names, use_https=False, cert_file=None, key_file
         server.add_camera(camera_name)
     
     return server
+
+
+def setup_camera_server(robot, logger):
+    """Initialize and start the WebRTC camera server in a background thread."""
+    use_https = True  # Set to False for HTTP
+    cert_file = "ssl_cert/server.crt"
+    key_file = "ssl_cert/server.key"
+
+    camera_server = create_camera_server(
+        robot.cameras.keys(),
+        use_https=use_https,
+        cert_file=cert_file,
+        key_file=key_file
+    )
+
+    server_thread = threading.Thread(target=camera_server.run_in_thread, daemon=True)
+    server_thread.start()
+
+    if use_https:
+        log_message(logger, "🔒 HTTPS WebRTC camera server started on https://0.0.0.0:8765")
+        log_message(logger, "📱 Access from Quest 3: https://YOUR_IP:8765")
+    else:
+        log_message(logger, "🎥 HTTP WebRTC camera server started on http://0.0.0.0:8765")
+
+    return camera_server
 
 
 if __name__ == "__main__":

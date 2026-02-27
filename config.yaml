@@ -20,7 +20,7 @@ arms:
     type: so100
     port: /dev/tty.usbmodem5A7C1167181
     use_degrees: true
-    cameras: [wrist, main]
+    cameras: [main]
     regularization: 1.0e-3
     end_effector_step_sizes: { x: 0.8, y: 0.8, z: 0.8 }
     end_effector_bounds:
@@ -33,4 +33,4 @@ arms:
 dataset:
   repo_id: "vladfatu/vr_test_single_arm"
   single_task: "Grab the cube"
-#   # root: "./datasets"  # optional: override dataset storage path
+  # root: "./datasets"  # optional: override dataset storage path

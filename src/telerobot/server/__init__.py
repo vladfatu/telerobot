@@ -4,13 +4,16 @@ from telerobot.server.webrtc_camera_server import (
     WebRTCCameraServer,
     create_ssl_context,
     create_camera_server,
+    setup_camera_server,
 )
-from telerobot.server.vr_headset import VRHeadset
+from telerobot.server.vr_headset import VRHeadset, setup_websocket_teleop
 
 __all__ = [
     "CameraStreamTrack",
     "WebRTCCameraServer",
     "create_ssl_context",
     "create_camera_server",
+    "setup_camera_server",
     "VRHeadset",
+    "setup_websocket_teleop",
 ]

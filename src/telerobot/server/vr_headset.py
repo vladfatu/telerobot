@@ -100,3 +100,10 @@ class VRHeadset:
                 self._server.close()
             self._loop.call_soon_threadsafe(_shutdown)
         self.connected = False
+
+
+def setup_websocket_teleop() -> VRHeadset:
+    """Create and connect the VR headset WebSocket teleop device."""
+    teleop_device = VRHeadset()
+    teleop_device.connect()
+    return teleop_device
