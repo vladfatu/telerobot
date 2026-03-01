@@ -10,18 +10,20 @@ AFRAME.registerComponent('websocket-panel', {
   },
 
   init: function() {
-    this.isConnecting = false; // Prevent multiple simultaneous connection attempts
     this.isResetting = false; // Prevent multiple reset triggers
     
     // Bind methods
     this.onConnectButtonAction = this.onConnectButtonAction.bind(this);
     this.onResetButtonAction = this.onResetButtonAction.bind(this);
     this.onPassthroughButtonAction = this.onPassthroughButtonAction.bind(this);
+    this.onConnectionChange = this.onConnectionChange.bind(this);
     
     this.createPanel();
     
-    // Update status periodically
-    this.tick = AFRAME.utils.throttleTick(this.tick, 500, this);
+    // Subscribe to connection state changes
+    if (window.webSocketManager) {
+      window.webSocketManager.addConnectionChangeListener(this.onConnectionChange);
+    }
   },
 
   createPanel: function() {
@@ -92,7 +94,8 @@ AFRAME.registerComponent('websocket-panel', {
       hoverColor: '#FFB74D',
       pressedColor: '#E65100',
       text: 'Reset',
-      textWidth: width * 1.5
+      textWidth: width * 1.5,
+      disabled: true
     });
     this.resetButton.setAttribute('position', `0 ${-height * 0.16} 0.015`);
     
@@ -122,23 +125,9 @@ AFRAME.registerComponent('websocket-panel', {
   },
 
   onConnectButtonAction: async function(event) {
-    // Prevent multiple simultaneous connection attempts
-    if (this.isConnecting) {
-      return;
-    }
-    
     if (!window.webSocketManager) {
       console.warn('⚠️ WebSocket manager not available');
       return;
-    }
-    
-    this.isConnecting = true;
-    
-    // Disable button during connection attempt
-    const buttonComponent = this.connectButton.components['vr-button'];
-    if (buttonComponent) {
-      buttonComponent.setDisabled(true);
-      buttonComponent.setText('...');
     }
     
     try {
@@ -146,14 +135,7 @@ AFRAME.registerComponent('websocket-panel', {
       console.log(`🔌 WebSocket ${connected ? 'connected' : 'disconnected'}`);
     } catch (error) {
       console.error('❌ Connection error:', error);
-    } finally {
-      this.isConnecting = false;
-      if (buttonComponent) {
-        buttonComponent.setDisabled(false);
-      }
     }
-    
-    // Update will happen in tick
   },
 
   onResetButtonAction: async function(event) {
@@ -182,7 +164,7 @@ AFRAME.registerComponent('websocket-panel', {
     }
     
     try {
-      await window.webSocketManager.triggerReset(2000);
+      await window.webSocketManager.triggerAction('reset', 2000);
       console.log('🔄 Reset complete');
     } catch (error) {
       console.error('❌ Reset error:', error);
@@ -212,24 +194,30 @@ AFRAME.registerComponent('websocket-panel', {
     }
   },
 
-  tick: function() {
-    if (!window.webSocketManager) return;
-    
-    const isConnected = window.webSocketManager.isConnected;
-    
+  onConnectionChange: function(status) {
+    const isConnected = status === 'connected';
+    const isConnecting = status === 'connecting';
+
     // Update status indicator
-    this.statusIndicator.setAttribute('color', isConnected ? '#44ff44' : '#ff4444');
+    const statusColor = isConnecting ? '#ffaa00' : (isConnected ? '#44ff44' : '#ff4444');
+    this.statusIndicator.setAttribute('color', statusColor);
     
     // Update status text
-    this.statusText.setAttribute('value', isConnected ? 'Connected' : 'Disconnected');
+    const statusLabel = isConnecting ? 'Connecting...' : (isConnected ? 'Connected' : 'Disconnected');
+    this.statusText.setAttribute('value', statusLabel);
     
-    // Update connect button via vr-button component
+    // Update connect button
     const buttonComponent = this.connectButton.components['vr-button'];
-    if (buttonComponent && !this.isConnecting) {
-      if (isConnected) {
+    if (buttonComponent) {
+      if (isConnecting) {
+        buttonComponent.setDisabled(true);
+        buttonComponent.setText('...');
+      } else if (isConnected) {
+        buttonComponent.setDisabled(false);
         buttonComponent.setColor('#f44336'); // Red for disconnect
         buttonComponent.setText('Disconnect');
       } else {
+        buttonComponent.setDisabled(false);
         buttonComponent.setColor('#4CAF50'); // Green for connect
         buttonComponent.setText('Connect');
       }
@@ -243,6 +231,9 @@ AFRAME.registerComponent('websocket-panel', {
   },
 
   remove: function() {
+    if (window.webSocketManager) {
+      window.webSocketManager.removeConnectionChangeListener(this.onConnectionChange);
+    }
     this.connectButton.removeEventListener('button-action', this.onConnectButtonAction);
     this.resetButton.removeEventListener('button-action', this.onResetButtonAction);
     this.passthroughButton.removeEventListener('button-action', this.onPassthroughButtonAction);

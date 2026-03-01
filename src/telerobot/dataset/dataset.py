@@ -36,8 +36,9 @@ def setup_dataset(robot, cfg, logger) -> LeRobotDataset | None:
         ),
     )
 
-    num_cameras = len(robot.cameras) if hasattr(robot, "cameras") else 0
-    num_image_writer_threads = cfg.dataset.num_image_writer_threads_per_camera * max(num_cameras, 1)
+    # Streaming encoding is always enabled with auto HW-accelerated codec (VideoToolbox on
+    # macOS, NVENC on Linux with Nvidia, etc.) for near-instant save_episode() calls.
+    VCODEC = "auto"
 
     dataset_root = Path(cfg.dataset.root) if cfg.dataset.root is not None else HF_LEROBOT_HOME / cfg.dataset.repo_id
     info_path = dataset_root / "meta" / "info.json"
@@ -57,10 +58,7 @@ def setup_dataset(robot, cfg, logger) -> LeRobotDataset | None:
         dataset = LeRobotDataset(
             repo_id=cfg.dataset.repo_id,
             root=cfg.dataset.root,
-        )
-        dataset.start_image_writer(
-            num_processes=0,
-            num_threads=num_image_writer_threads,
+            streaming_encoding=True,
         )
         log_message(logger, f"📂 Resuming existing dataset: {cfg.dataset.repo_id} ({dataset.num_episodes} episodes so far)")
     else:
@@ -71,41 +69,35 @@ def setup_dataset(robot, cfg, logger) -> LeRobotDataset | None:
             robot_type=robot.name,
             features=dataset_features,
             use_videos=True,
-            image_writer_processes=0,
-            image_writer_threads=num_image_writer_threads,
-            vcodec=cfg.dataset.vcodec,
+            vcodec=VCODEC,
+            streaming_encoding=True,
         )
         log_message(logger, f"📁 Dataset recording enabled: {cfg.dataset.repo_id}")
+    log_message(logger, f"🎬 Streaming video encoding active (vcodec={VCODEC})")
     return dataset
 
 
 def end_active_episode(
     dataset: LeRobotDataset | None,
-    recording: bool,
     logger,
-) -> bool:
+) -> None:
     """Save and close the current episode if recording is active."""
-    if dataset is not None and recording:
+    if dataset is not None:
         dataset.save_episode()
         log_message(
             logger,
             f"✅ Episode {dataset.num_episodes - 1} saved ({dataset.num_frames} total frames)",
         )
-        return False
-    return recording
-
 
 def record_step(
     dataset: LeRobotDataset | None,
     cfg,
     obs,
     action,
-    recording: bool,
-    logger,
-) -> bool:
+) -> None:
     """Record a single observation/action step into the dataset."""
     if dataset is None:
-        return recording
+        return
 
     observation_frame = build_dataset_frame(
         dataset.features, obs, prefix=OBS_STR
@@ -120,18 +112,33 @@ def record_step(
     }
     dataset.add_frame(frame)
 
-    if not recording:
-        log_message(logger, f"🔴 Recording episode {dataset.num_episodes}...")
-        recording = True
 
-    return recording
-
-
-def finalize_dataset(dataset: LeRobotDataset | None, recording: bool, logger) -> None:
-    """Gracefully stop dataset recording and background writers."""
+def finalize_dataset(dataset: LeRobotDataset | None, push_to_hub: bool, logger) -> None:
+    """Gracefully stop dataset recording and background writers.
+    
+    Optionally pushes the dataset to the Hugging Face Hub.
+    """
     if dataset is None:
         return
 
-    recording = end_active_episode(dataset, recording, logger)
-    safe_stop_image_writer(dataset)
+    # Stop the image writer only when not using streaming encoding (streaming
+    # encoder threads manage their own lifecycle via finish_episode / cancel_episode).
+    streaming_encoder = getattr(dataset, "_streaming_encoder", None)
+    if streaming_encoder is None:
+        safe_stop_image_writer(dataset)
+    else:
+        streaming_encoder.close()
+    dataset.finalize()  # Flush buffered episode metadata to parquet files
     log_message(logger, f"📊 Total episodes recorded: {dataset.num_episodes}")
+
+    if push_to_hub:
+        if dataset.num_episodes == 0:
+            log_message(logger, "⚠️ No episodes recorded — skipping push to Hub.")
+            return
+        try:
+            log_message(logger, f"🚀 Pushing dataset '{dataset.repo_id}' to Hugging Face Hub...")
+            dataset.push_to_hub()
+            log_message(logger, f"✅ Dataset '{dataset.repo_id}' pushed successfully.")
+        except Exception as e:
+            log_message(logger, f"❌ Failed to push dataset to Hub: {e}")
+            log_message(logger, "   Make sure you are logged in (run `huggingface-cli login`) or set HF_TOKEN.")

@@ -44,6 +44,8 @@ def main():
     controller.capture_initial_observations()
 
     recording = False
+    finalized_dataset = False
+    push_to_hub = cfg.dataset.push_to_hub if cfg.dataset else False
 
     log_message(logger, "Starting teleop loop. Move your phone to teleoperate the robot...")
     loop_count = 0
@@ -59,29 +61,44 @@ def main():
 
             if vr_obs is None:
                 pass  # No observation received yet; cameras still streamed below
-            elif vr_obs['reset'] and not controller.has_initial_position:
-                controller.reset()
-                # End current episode if we were recording
-                recording = end_active_episode(dataset, recording, logger)
             else:
-                # print("VR Observation: ", vr_obs)
-                result = controller.process_vr_observation(vr_obs)
+                action_str = vr_obs.get('action', 'none')
 
-                t_control = time.perf_counter()  # TODO: Remove timing debug
+                if action_str == 'reset' and not controller.has_initial_position:
+                    controller.reset()
+                elif action_str == 'start_episode' and not recording:
+                    # Begin a new recording episode (no-op if already recording)
+                    log_message(logger, f"🔴 Recording episode {dataset.num_episodes if dataset else '?'}...")
+                    recording = True
+                    finalized_dataset = False
+                elif action_str == 'stop_episode' and recording:
+                    controller.reset()
+                    # End the current recording episode
+                    end_active_episode(dataset, logger)
+                    recording = False
+                elif action_str == 'save_dataset' and not finalized_dataset:
+                    # Finalize and save the entire dataset
+                    finalize_dataset(dataset, push_to_hub, logger)
+                    recording = False
+                    finalized_dataset = True
+                else:
+                    result = controller.process_vr_observation(vr_obs)
+                    t_control = time.perf_counter()  # TODO: Remove timing debug
 
-                if result is not None:
-                    obs, action = result
+                    if result is not None:
+                        obs, action = result
 
-                    # Collect camera frames from observation (avoids double camera read)
-                    for cam_name in duo_robot.cameras:
-                        if cam_name in obs:
-                            camera_frames[cam_name] = obs[cam_name]
+                        # Collect camera frames from observation (avoids double camera read)
+                        for cam_name in duo_robot.cameras:
+                            if cam_name in obs:
+                                camera_frames[cam_name] = obs[cam_name]
 
-                    log_rerun_data(observation=obs, action=action)
+                        log_rerun_data(observation=obs, action=action)
 
-                    t_rerun = time.perf_counter()  # TODO: Remove timing debug
+                        t_rerun = time.perf_counter()  # TODO: Remove timing debug
 
-                    recording = record_step(dataset, cfg, obs, action, recording, logger)
+                        if recording:
+                            record_step(dataset, cfg, obs, action)
 
             # Always stream cameras — reuse obs frames when available, otherwise read directly
             for cam_name, cam in duo_robot.cameras.items():
@@ -98,7 +115,7 @@ def main():
     except KeyboardInterrupt:
         log_message(logger, "\nStopping teleop...")
     finally:
-        finalize_dataset(dataset, recording, logger)
+        finalize_dataset(dataset, push_to_hub, logger)
 
 
 if __name__ == "__main__":

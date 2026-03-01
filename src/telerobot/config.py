@@ -46,8 +46,7 @@ class DatasetConfig:
     repo_id: str
     single_task: str
     root: str | None = None
-    num_image_writer_threads_per_camera: int = 4
-    vcodec: str = "libsvtav1"
+    push_to_hub: bool = False
 
 
 @dataclass
@@ -127,10 +126,7 @@ def load_config(path: str | Path) -> RobotConfig:
             repo_id=repo_id,
             single_task=single_task,
             root=dataset_section.get("root"),
-            num_image_writer_threads_per_camera=dataset_section.get(
-                "num_image_writer_threads_per_camera", 4
-            ),
-            vcodec=dataset_section.get("vcodec", "libsvtav1"),
+            push_to_hub=dataset_section.get("push_to_hub", False),
         )
 
     robot_section = raw.get("robot", {})

@@ -3,10 +3,14 @@
  * Handles connection to the VR headset server and sends controller data
  */
 class WebSocketManager {
+  // Connection status constants
+  static STATUS_DISCONNECTED = 'disconnected';
+  static STATUS_CONNECTING = 'connecting';
+  static STATUS_CONNECTED = 'connected';
+
   constructor() {
     this.socket = null;
-    this.isConnected = false;
-    this.isToggling = false; // Prevent multiple toggle operations
+    this.connectionStatus = WebSocketManager.STATUS_DISCONNECTED;
     // Build WebSocket URL from current origin with port 8080
     // Use wss:// for HTTPS pages, ws:// for HTTP pages
     const origin = new URL(window.location.origin);
@@ -14,13 +18,47 @@ class WebSocketManager {
     this.serverUrl = `${wsProtocol}//${origin.hostname}:8080`;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
-    this.resetActive = false; // Flag to send reset=true with controller updates
+    this.currentAction = 'none'; // Current action: none, reset, start_episode, stop_episode, save_dataset
+    this.actionLocked = false; // Prevents multiple actions within 500ms
+    this._connectionObservers = []; // Observers for connection state changes
     
     // Store controller data
     this.controllerData = {
       left: null,
       right: null
     };
+  }
+
+  /** @returns {boolean} Whether the connection is currently established */
+  get isConnected() {
+    return this.connectionStatus === WebSocketManager.STATUS_CONNECTED;
+  }
+
+  /**
+   * Subscribe to connection status changes.
+   * @param {function(string)} callback - Called with status string when connection state changes
+   */
+  addConnectionChangeListener(callback) {
+    this._connectionObservers.push(callback);
+  }
+
+  /**
+   * Unsubscribe from connection status changes.
+   * @param {function(string)} callback - The callback to remove
+   */
+  removeConnectionChangeListener(callback) {
+    this._connectionObservers = this._connectionObservers.filter(cb => cb !== callback);
+  }
+
+  /**
+   * Update connection status and notify all observers.
+   * @param {string} status - One of: 'disconnected', 'connecting', 'connected'
+   */
+  _setConnectionStatus(status) {
+    this.connectionStatus = status;
+    for (const cb of this._connectionObservers) {
+      try { cb(status); } catch (e) { console.error('Observer error:', e); }
+    }
   }
 
   /**
@@ -36,26 +74,27 @@ class WebSocketManager {
       }
 
       console.log(`🔌 Connecting to WebSocket server at ${this.serverUrl}...`);
+      this._setConnectionStatus(WebSocketManager.STATUS_CONNECTING);
       
       try {
         this.socket = new WebSocket(this.serverUrl);
 
         this.socket.onopen = () => {
           console.log('✅ WebSocket connected successfully');
-          this.isConnected = true;
+          this._setConnectionStatus(WebSocketManager.STATUS_CONNECTED);
           this.reconnectAttempts = 0;
           resolve(true);
         };
 
         this.socket.onclose = (event) => {
           console.log(`🔌 WebSocket disconnected (code: ${event.code})`);
-          this.isConnected = false;
+          this._setConnectionStatus(WebSocketManager.STATUS_DISCONNECTED);
           this.socket = null;
         };
 
         this.socket.onerror = (error) => {
           console.error('❌ WebSocket error:', error);
-          this.isConnected = false;
+          this._setConnectionStatus(WebSocketManager.STATUS_DISCONNECTED);
           reject(error);
         };
 
@@ -79,7 +118,7 @@ class WebSocketManager {
       console.log('🔌 Disconnecting WebSocket...');
       this.socket.close();
       this.socket = null;
-      this.isConnected = false;
+      this._setConnectionStatus(WebSocketManager.STATUS_DISCONNECTED);
     }
   }
 
@@ -88,31 +127,22 @@ class WebSocketManager {
    * @returns {Promise<boolean>} - New connection state
    */
   async toggleConnection() {
-    // Prevent multiple simultaneous toggle operations
-    if (this.isToggling) {
-      console.log('⏳ Toggle already in progress, ignoring...');
+    // Prevent toggle while connecting
+    if (this.connectionStatus === WebSocketManager.STATUS_CONNECTING) {
+      console.log('⏳ Connection in progress, ignoring...');
       return this.isConnected;
     }
     
-    this.isToggling = true;
-    
-    try {
-      if (this.isConnected) {
-        this.disconnect();
+    if (this.isConnected) {
+      this.disconnect();
+      return false;
+    } else {
+      try {
+        await this.connect();
+        return true;
+      } catch (error) {
         return false;
-      } else {
-        try {
-          await this.connect();
-          return true;
-        } catch (error) {
-          return false;
-        }
       }
-    } finally {
-      // Small delay to prevent rapid re-triggers
-      setTimeout(() => {
-        this.isToggling = false;
-      }, 300);
     }
   }
 
@@ -143,7 +173,7 @@ class WebSocketManager {
 
     // FramePacket structure: { left: PosePacket, right: PosePacket }
     const payload = {
-      reset: this.resetActive,
+      action: this.currentAction,
       left: this.controllerData.left,
       right: this.controllerData.right
     };
@@ -156,18 +186,34 @@ class WebSocketManager {
   }
 
   /**
-   * Trigger reset mode for a specified duration
-   * @param {number} durationMs - Duration in milliseconds to keep reset active
-   * @returns {Promise<void>} - Resolves when reset period is complete
+   * Trigger an action for a specified duration
+   * @param {string} action - One of: 'reset', 'start_episode', 'stop_episode', 'save_dataset'
+   * @param {number} durationMs - Duration in milliseconds to keep action active
+   * @returns {Promise<void>} - Resolves when action period is complete
    */
-  triggerReset(durationMs = 500) {
-    return new Promise((resolve) => {
-      this.resetActive = true;
-      console.log('🔄 Reset triggered');
+  triggerAction(action, durationMs = 500) {
+    return new Promise((resolve, reject) => {
+      if (this.actionLocked) {
+        console.warn('⏳ Action locked, ignoring:', action);
+        reject(new Error('Action locked'));
+        return;
+      }
+
+      const validActions = ['reset', 'start_episode', 'stop_episode', 'save_dataset'];
+      if (!validActions.includes(action)) {
+        console.error('❌ Invalid action:', action);
+        reject(new Error('Invalid action: ' + action));
+        return;
+      }
+
+      this.actionLocked = true;
+      this.currentAction = action;
+      console.log(`🎬 Action triggered: ${action}`);
       
       setTimeout(() => {
-        this.resetActive = false;
-        console.log('🔄 Reset complete');
+        this.currentAction = 'none';
+        this.actionLocked = false;
+        console.log(`🎬 Action complete: ${action}`);
         resolve();
       }, durationMs);
     });

@@ -83,6 +83,8 @@ AFRAME.registerComponent('vr-button', {
   },
 
   onMouseLeave: function(event) {
+    this.el.setAttribute('scale', '1 1 1');
+    
     if (this.data.disabled) return;
     this.isHovered = false;
     
@@ -98,7 +100,6 @@ AFRAME.registerComponent('vr-button', {
     }
     
     this.el.setAttribute('material', 'color', this.baseColor);
-    this.el.setAttribute('scale', '1 1 1');
   },
 
   onTriggerChanged: function(event) {
@@ -128,28 +129,19 @@ AFRAME.registerComponent('vr-button', {
   },
 
   update: function(oldData) {
-    // Update text if changed
-    if (oldData.text !== this.data.text && this.buttonText) {
+    console.log('Updating button:', this.data);
+    this.baseColor = this.data.color;
+
+    if (this.buttonText) {
       this.buttonText.setAttribute('value', this.data.text);
-    }
-    
-    // Update base color if changed
-    if (oldData.color !== this.data.color) {
-      this.baseColor = this.data.color;
-      if (!this.isHovered && !this.isPressed) {
-        this.el.setAttribute('material', 'color', this.baseColor);
-      }
-    }
-    
-    // Update text color if changed
-    if (oldData.textColor !== this.data.textColor && this.buttonText) {
       this.buttonText.setAttribute('color', this.data.textColor);
     }
-    
-    // Handle disabled state
+
     if (this.data.disabled) {
       this.el.setAttribute('material', 'color', '#888888');
       this.el.setAttribute('scale', '1 1 1');
+    } else if (!this.isHovered && !this.isPressed) {
+      this.el.setAttribute('material', 'color', this.baseColor);
     }
   },
 
