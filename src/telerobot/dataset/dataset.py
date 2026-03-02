@@ -137,7 +137,7 @@ def finalize_dataset(dataset: LeRobotDataset | None, push_to_hub: bool, logger) 
             return
         try:
             log_message(logger, f"🚀 Pushing dataset '{dataset.repo_id}' to Hugging Face Hub...")
-            dataset.push_to_hub()
+            dataset.push_to_hub(tags=["TeLeRobot"])
             log_message(logger, f"✅ Dataset '{dataset.repo_id}' pushed successfully.")
         except Exception as e:
             log_message(logger, f"❌ Failed to push dataset to Hub: {e}")
