@@ -1,6 +1,6 @@
 # TeLeRobot
 
-VR teleoperation for dual SO-ARM101 robots using a Meta Quest headset.
+VR teleoperation for SO-ARM101 arms using a Meta Quest headset.
 
 ## Prerequisites
 
