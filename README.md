@@ -48,7 +48,6 @@ cp examples/config/dual-arms.yaml config.yaml
 ### Port and camera index settings(mandatory)
 At minimum, update the `port` field(s) under `arms` to match your robot's serial port, and the `index` field(s) under `cameras` to match your connected cameras.
 
-
 #### Dataset recording settings (optional)
 To record episodes to a LeRobot dataset, uncomment the `dataset` section and update the fields as follows:
 - `dataset.repo_id` — the Hugging Face Hub repo where the dataset will be stored (e.g. `your-username/vr-episodes`)
@@ -73,6 +72,9 @@ To use a custom config file:
 ```bash
 poetry run telerobot -c path/to/config.yaml
 ```
+
+## Calibration
+The first time you run telerobot, the arms will be in calibration mode. Follow the instructions in the terminal and move the arms to the indicated poses to complete the calibration process. For a more detailed explanation of the calibration process, see [this video from LeRobot](https://huggingface.co/docs/lerobot/so101#calibration-video).
 
 ## Network Setup
 
