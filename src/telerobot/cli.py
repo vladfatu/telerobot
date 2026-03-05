@@ -1,5 +1,6 @@
 import argparse
 import time
+from pathlib import Path
 
 from lerobot.utils.robot_utils import precise_sleep
 from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
@@ -10,7 +11,8 @@ from telerobot.dataset import setup_dataset, end_active_episode, record_step, fi
 from telerobot.logger import get_logger, log_message, maybe_log_loop_timing
 from telerobot.server import setup_camera_server, setup_websocket_teleop
 
-DEFAULT_CONFIG_PATH = "config.yaml"
+# Resolve default config path relative to the project root (two levels up from this file)
+DEFAULT_CONFIG_PATH = str(Path(__file__).parent.parent.parent / "config.yaml")
 
 
 def main():

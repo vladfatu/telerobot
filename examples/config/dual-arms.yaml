@@ -45,3 +45,11 @@ arms:
       max: [1.0, 1.0, 1.0]
     max_ee_step_m: 0.20
     gripper_speed_factor: 20.0
+
+# Uncomment to enable episode recording to a LeRobot dataset
+dataset:
+  repo_id: "vladfatu/vr_test_single_arm"
+  single_task: "Grab the cube"
+  push_to_hub: true  # set to true to push the dataset to Hugging Face Hub on save
+  # root: "./datasets"  # optional: override dataset storage path
+

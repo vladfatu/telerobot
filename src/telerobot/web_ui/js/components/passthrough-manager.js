@@ -6,7 +6,7 @@ AFRAME.registerComponent('passthrough-manager', {
   init: function () {
     this.sky = document.querySelector('a-sky');
     this.floor = document.querySelector('a-plane');
-    this.passthroughEnabled = false; // Start with passthrough OFF
+    this.passthroughEnabled = true; // Start with passthrough OFF
     
     // Make this component globally accessible for the toggle button
     window.passthroughManager = this;
