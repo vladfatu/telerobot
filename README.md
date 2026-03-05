@@ -74,7 +74,9 @@ poetry run telerobot -c path/to/config.yaml
 ```
 
 ## Calibration
-The first time you run telerobot, the arms will be in calibration mode. Follow the instructions in the terminal and move the arms to the indicated poses to complete the calibration process. For a more detailed explanation of the calibration process, see [this video from LeRobot](https://huggingface.co/docs/lerobot/so101#calibration-video).
+The first time you run telerobot, the arms will be in calibration mode. Follow the instructions in the terminal and move the arm to the middle of it's range. Then move each joint to the max and min positions as prompted. 
+
+For a more detailed explanation of the calibration process, see [this video from LeRobot](https://huggingface.co/docs/lerobot/so101#calibration-video).
 
 ## Network Setup
 
