@@ -57,6 +57,7 @@ class RobotConfig:
     cameras: dict[str, CameraConfig]
     arms: dict[str, ArmConfig]
     dataset: DatasetConfig | None = None
+    use_rerun: bool = True
 
 
 def load_config(path: str | Path) -> RobotConfig:
@@ -136,6 +137,7 @@ def load_config(path: str | Path) -> RobotConfig:
         cameras=cameras,
         arms=arms,
         dataset=dataset_cfg,
+        use_rerun=robot_section.get("use_rerun", True),
     )
 
 

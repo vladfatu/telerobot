@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 from lerobot.utils.robot_utils import precise_sleep
-from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
+from lerobot.utils.visualization_utils import init_rerun, log_rerun_data  # noqa: F401 (imported conditionally)
 
 from telerobot.config import load_robot
 from telerobot.controller import build_controller
@@ -37,8 +37,9 @@ def main():
     # Connect to the robot
     duo_robot.connect()
 
-    # Init rerun viewer
-    init_rerun(session_name="vr_lerobot_teleop")
+    # Init rerun viewer (optional)
+    if cfg.use_rerun:
+        init_rerun(session_name="vr_lerobot_teleop")
 
     if not duo_robot.is_connected or not teleop_device.is_connected:
         raise ValueError("Robot or teleop is not connected!")
@@ -95,7 +96,8 @@ def main():
                             if cam_name in obs:
                                 camera_frames[cam_name] = obs[cam_name]
 
-                        log_rerun_data(observation=obs, action=action)
+                        if cfg.use_rerun:
+                            log_rerun_data(observation=obs, action=action)
 
                         t_rerun = time.perf_counter()  # TODO: Remove timing debug
 

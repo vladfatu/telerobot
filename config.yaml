@@ -4,6 +4,7 @@
 robot:
   id: single_arm
   fps: 30
+  use_rerun: false  # set to true to enable the Rerun viewer
 
 cameras:
   wrist:

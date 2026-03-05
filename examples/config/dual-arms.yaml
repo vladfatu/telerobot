@@ -4,6 +4,7 @@
 robot:
   id: duo_robot
   fps: 30
+  use_rerun: false  # set to true to enable the Rerun viewer
 
 cameras:
   left_wrist:
