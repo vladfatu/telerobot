@@ -4,29 +4,24 @@ VR teleoperation for SO-ARM101 arms using a Meta Quest headset.
 
 ## Prerequisites
 
-- Python 3.11+
-- [Poetry](https://python-poetry.org/) for dependency management
-- A Meta Quest headset (e.g. Quest 3)
-- SSL certificates in `ssl_cert/` (`server.crt` and `server.key`)
-
-## Poetry Setup
-
+- ### A Meta Quest headset 
+I only tested with Quest 3, but it should work with Quest 2 as well. If you have a different model and want to help support it, please open an issue or submit a PR!
+- ### Python 3.11+
+- ### [Poetry](https://python-poetry.org/) for dependency management
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
 ``` 
 and add Poetry's bin directory in to your PATH environment variable (as suggested by the installer) 
+- ### SSL certificates (required for HTTPS/WebRTC)
+```bash
+mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
+```
 
 ## Install
 
 Move to the project directory and install dependencies:
 ```bash
 poetry install
-```
-
-## Generate SSL certificates (required for HTTPS/WebRTC):
-
-```bash
-mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
 ```
 
 ## Configuration
