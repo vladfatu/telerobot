@@ -9,8 +9,16 @@ VR teleoperation for dual SO-ARM101 robots using a Meta Quest headset.
 - A Meta Quest headset (e.g. Quest 3)
 - SSL certificates in `ssl_cert/` (`server.crt` and `server.key`)
 
+## Poetry Setup
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+``` 
+and add Poetry's bin directory in to your PATH environment variable (as suggested by the installer) 
+
 ## Install
 
+Move to the project directory and install dependencies:
 ```bash
 poetry install
 ```
