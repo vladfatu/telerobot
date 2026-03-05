@@ -15,7 +15,7 @@ VR teleoperation for dual SO-ARM101 robots using a Meta Quest headset.
 poetry install
 ```
 
-After installing, generate SSL certificates (required for HTTPS/WebRTC):
+## Generate SSL certificates (required for HTTPS/WebRTC):
 
 ```bash
 mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
