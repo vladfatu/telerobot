@@ -21,6 +21,32 @@ poetry install
 mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
 ```
 
+## Configuration
+
+Telerobot requires a `config.yaml` file at the project root. Ready-made templates are provided in `examples/config/` — pick the one that matches your hardware:
+
+| Setup | Template |
+|---|---|
+| Single arm | `examples/config/single-arm.yaml` |
+| Dual arms (left + right) | `examples/config/dual-arms.yaml` |
+
+Copy the appropriate template and adjust it to your setup:
+
+```bash
+# Single arm
+cp examples/config/single-arm.yaml config.yaml
+
+# Dual arms
+cp examples/config/dual-arms.yaml config.yaml
+```
+
+At minimum, update the `port` field(s) under `arms` to match your robot's serial port, and the `index` field(s) under `cameras` to match your connected cameras.
+
+Other notable settings that you may want to play with:
+- `dataset` — uncomment to enable episode recording to a LeRobot dataset
+- `regularization` — adjust to increase/decrease the smoothness of the robot's motion (higher = smoother but less responsive) A regularization of 3.0e-3 or 4.0e-3 should allow you to move the controller fast all the way to the edge of it's reach without the arm shaking, but it also means that the arm will be less responsive to small controller movements.
+- `end_effector_step_sizes` — adjust to increase/decrease the robot's reach compared to the VR controller's movement (with values of { x: 0.8, y: 0.8, z: 0.8 }, the robot's end effector will move 80cm when you move the controller by 1m)
+
 ## Usage
 
 ```bash
