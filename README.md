@@ -11,7 +11,7 @@ I only tested with Quest 3, but it should work with Quest 2 as well. If you have
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
 ``` 
-and add Poetry's bin directory in to your PATH environment variable (as suggested by the installer) 
+> and add Poetry's bin directory in to your PATH environment variable (as suggested by the installer) 
 
 ## Install
 
@@ -47,6 +47,7 @@ cp examples/config/dual-arms.yaml config.yaml
 
 ### Port and camera index settings(mandatory)
 At minimum, update the `port` field(s) under `arms` to match your robot's serial port, and the `index` field(s) under `cameras` to match your connected cameras.
+
 
 #### Dataset recording settings (optional)
 To record episodes to a LeRobot dataset, uncomment the `dataset` section and update the fields as follows:
