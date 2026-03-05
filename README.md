@@ -48,7 +48,7 @@ cp examples/config/single-arm.yaml config.yaml
 cp examples/config/dual-arms.yaml config.yaml
 ```
 
-#### Port and camera index settings(mandatory)
+### Port and camera index settings(mandatory)
 At minimum, update the `port` field(s) under `arms` to match your robot's serial port, and the `index` field(s) under `cameras` to match your connected cameras.
 
 #### Dataset recording settings (optional)
