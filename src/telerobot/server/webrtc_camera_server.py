@@ -229,12 +229,16 @@ def create_camera_server(camera_names, use_https=False, cert_file=None, key_file
     ssl_context = None
     
     if use_https and cert_file and key_file:
-        if Path(cert_file).exists() and Path(key_file).exists():
-            ssl_context = create_ssl_context(cert_file, key_file)
-            print(f"✅ SSL enabled with {cert_file}")
-        else:
-            print(f"❌ SSL certificate files not found: {cert_file}, {key_file}")
-            print("Falling back to HTTP")
+        missing = [f for f in (cert_file, key_file) if not Path(f).exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"SSL certificate file(s) not found: {', '.join(missing)}\n"
+                "Generate them with:\n"
+                "  mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key "
+                "-out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'"
+            )
+        ssl_context = create_ssl_context(cert_file, key_file)
+        print(f"✅ SSL enabled with {cert_file}")
     
     server = WebRTCCameraServer(ssl_context=ssl_context)
     
