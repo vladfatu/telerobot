@@ -15,8 +15,8 @@ def create_ssl_context(cert_file: str, key_file: str):
     return ssl_context
 
 
-class VRHeadset:
-    name = "vr_headset"
+class WebSocketServer:
+    name = "websocket_server"
 
     def __init__(self, use_ssl: bool = True, cert_file: str = None, key_file: str = None):
         self.connected = False
@@ -102,8 +102,8 @@ class VRHeadset:
         self.connected = False
 
 
-def setup_websocket_teleop() -> VRHeadset:
-    """Create and connect the VR headset WebSocket teleop device."""
-    teleop_device = VRHeadset()
+def setup_websocket_server() -> WebSocketServer:
+    """Create and connect the WebSocket teleop server."""
+    teleop_device = WebSocketServer()
     teleop_device.connect()
     return teleop_device

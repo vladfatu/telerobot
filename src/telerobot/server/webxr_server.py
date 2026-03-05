@@ -53,17 +53,18 @@ class CameraStreamTrack(VideoStreamTrack):
         return frame
 
 
-class WebRTCCameraServer:
-    """WebRTC server for streaming multiple camera feeds."""
+class WebXRServer:
+    """WebXR server for streaming multiple camera feeds."""
     
     async def health_check(self, request):
         """Simple health check endpoint."""
         return web.json_response({"status": "ok", "cameras": list(self.camera_tracks.keys())})
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8765, ssl_context=None):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8765, ssl_context=None, dataset_configured: bool = False):
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
+        self.dataset_configured = dataset_configured
         self.app = web.Application()
         self.pcs: set = set()
         self.camera_tracks: Dict[str, CameraStreamTrack] = {}
@@ -113,6 +114,13 @@ class WebRTCCameraServer:
         try:
             with open(html_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
+            # Inject server-side config before any app scripts load
+            config_script = (
+                f'<script>window.telerobotConfig = '
+                f'{{ "datasetConfigured": {str(self.dataset_configured).lower()} }};</script>\n'
+            )
+            html_content = html_content.replace('<script src="js/websocket-manager.js"></script>',
+                config_script + '    <script src="js/websocket-manager.js"></script>')
             return web.Response(text=html_content, content_type='text/html')
         except FileNotFoundError:
             return web.Response(
@@ -224,8 +232,8 @@ def create_ssl_context(cert_file: str, key_file: str):
     return ssl_context
 
 
-def create_camera_server(camera_names, use_https=False, cert_file=None, key_file=None) -> WebRTCCameraServer:
-    """Create and configure the camera server."""
+def create_webxr_server(camera_names, use_https=False, cert_file=None, key_file=None, dataset_configured: bool = False) -> WebXRServer:
+    """Create and configure the WebXR server."""
     ssl_context = None
     
     if use_https and cert_file and key_file:
@@ -240,7 +248,7 @@ def create_camera_server(camera_names, use_https=False, cert_file=None, key_file
         ssl_context = create_ssl_context(cert_file, key_file)
         print(f"✅ SSL enabled with {cert_file}")
     
-    server = WebRTCCameraServer(ssl_context=ssl_context)
+    server = WebXRServer(ssl_context=ssl_context, dataset_configured=dataset_configured)
     
     # Add your camera streams
     for camera_name in camera_names:
@@ -249,27 +257,28 @@ def create_camera_server(camera_names, use_https=False, cert_file=None, key_file
     return server
 
 
-def setup_camera_server(robot, logger):
-    """Initialize and start the WebRTC camera server in a background thread."""
+def setup_webxr_server(robot, logger, dataset_configured: bool = False):
+    """Initialize and start the WebXR server in a background thread."""
     use_https = True  # Set to False for HTTP
     cert_file = "ssl_cert/server.crt"
     key_file = "ssl_cert/server.key"
 
-    camera_server = create_camera_server(
+    camera_server = create_webxr_server(
         robot.cameras.keys(),
         use_https=use_https,
         cert_file=cert_file,
-        key_file=key_file
+        key_file=key_file,
+        dataset_configured=dataset_configured,
     )
 
     server_thread = threading.Thread(target=camera_server.run_in_thread, daemon=True)
     server_thread.start()
 
     if use_https:
-        log_message(logger, "🔒 HTTPS WebRTC camera server started on https://0.0.0.0:8765")
+        log_message(logger, "🔒 HTTPS WebXR server started on https://0.0.0.0:8765")
         log_message(logger, "📱 Access from Quest 3: https://YOUR_IP:8765")
     else:
-        log_message(logger, "🎥 HTTP WebRTC camera server started on http://0.0.0.0:8765")
+        log_message(logger, "🎥 HTTP WebXR server started on http://0.0.0.0:8765")
 
     return camera_server
 
@@ -282,7 +291,7 @@ if __name__ == "__main__":
     cert_file = "ssl_cert/server.crt"
     key_file = "ssl_cert/server.key"
     
-    server = create_camera_server(["test"], use_https=use_https, cert_file=cert_file, key_file=key_file)
+    server = create_webxr_server(["test"], use_https=use_https, cert_file=cert_file, key_file=key_file)
     asyncio.run(server.start_server())
     print("Server running. Press Ctrl+C to stop.")
     try:

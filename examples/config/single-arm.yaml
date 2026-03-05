@@ -17,7 +17,7 @@ cameras:
     height: 480
 
 arms:
-  right:
+  right:  # change to "left" if using your left VR controller
     type: so100
     port: /dev/tty.usbmodem5A7C1167181
     use_degrees: true

@@ -15,6 +15,7 @@ AFRAME.registerComponent('dataset-panel', {
     this.isRecording = false;
     this.countdownValue = 0;
     this.countdownTimer = null;
+    this.datasetConfigured = !!(window.telerobotConfig && window.telerobotConfig.datasetConfigured);
 
     // Bind methods
     this.onRecordButtonAction = this.onRecordButtonAction.bind(this);
@@ -56,11 +57,11 @@ AFRAME.registerComponent('dataset-panel', {
 
     // Status / countdown text (always visible)
     this.countdownText = document.createElement('a-text');
-    this.countdownText.setAttribute('value', 'not recording');
+    this.countdownText.setAttribute('value', this.datasetConfigured ? 'not recording' : 'no dataset configured');
     this.countdownText.setAttribute('align', 'center');
     this.countdownText.setAttribute('position', `0 ${height * 0.08} 0.015`);
     this.countdownText.setAttribute('width', width * 2.5);
-    this.countdownText.setAttribute('color', '#FFD54F');
+    this.countdownText.setAttribute('color', this.datasetConfigured ? '#FFD54F' : '#EF9A9A');
     this.panel.appendChild(this.countdownText);
 
     // Record / Save button
@@ -181,15 +182,16 @@ AFRAME.registerComponent('dataset-panel', {
 
   onConnectionChange: function(status) {
     const isConnected = status === 'connected';
+    const canUseDataset = isConnected && this.datasetConfigured;
 
     const recordBtnComp = this.recordButton.components['vr-button'];
     if (recordBtnComp && !this.isCountingDown) {
-      recordBtnComp.setDisabled(!isConnected);
+      recordBtnComp.setDisabled(!canUseDataset);
     }
 
     const saveBtnComp = this.saveDatasetButton.components['vr-button'];
     if (saveBtnComp) {
-      saveBtnComp.setDisabled(!isConnected);
+      saveBtnComp.setDisabled(!canUseDataset);
     }
   },
 

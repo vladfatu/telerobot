@@ -9,7 +9,7 @@ from telerobot.config import load_robot
 from telerobot.controller import build_controller
 from telerobot.dataset import setup_dataset, end_active_episode, record_step, finalize_dataset
 from telerobot.logger import get_logger, log_message, maybe_log_loop_timing
-from telerobot.server import setup_camera_server, setup_websocket_teleop
+from telerobot.server import setup_webxr_server, setup_websocket_server
 
 # Resolve default config path relative to the project root (two levels up from this file)
 DEFAULT_CONFIG_PATH = str(Path(__file__).parent.parent.parent / "config.yaml")
@@ -28,8 +28,8 @@ def main():
 
     duo_robot, cfg = load_robot(args.config)
 
-    camera_server = setup_camera_server(duo_robot, logger)
-    teleop_device = setup_websocket_teleop()
+    camera_server = setup_webxr_server(duo_robot, logger, dataset_configured=cfg.dataset is not None)
+    teleop_device = setup_websocket_server()
 
     controller = build_controller(duo_robot, cfg)
     dataset = setup_dataset(duo_robot, cfg, logger)

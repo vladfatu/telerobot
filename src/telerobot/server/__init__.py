@@ -1,19 +1,19 @@
 # Server module
-from telerobot.server.webrtc_camera_server import (
+from telerobot.server.webxr_server import (
     CameraStreamTrack,
-    WebRTCCameraServer,
+    WebXRServer,
     create_ssl_context,
-    create_camera_server,
-    setup_camera_server,
+    create_webxr_server,
+    setup_webxr_server,
 )
-from telerobot.server.vr_headset import VRHeadset, setup_websocket_teleop
+from telerobot.server.websocket_server import WebSocketServer, setup_websocket_server
 
 __all__ = [
     "CameraStreamTrack",
-    "WebRTCCameraServer",
+    "WebXRServer",
     "create_ssl_context",
-    "create_camera_server",
-    "setup_camera_server",
-    "VRHeadset",
-    "setup_websocket_teleop",
+    "create_webxr_server",
+    "setup_webxr_server",
+    "WebSocketServer",
+    "setup_websocket_server",
 ]
