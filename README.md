@@ -40,17 +40,19 @@ cp examples/config/single-arm.yaml config.yaml
 cp examples/config/dual-arms.yaml config.yaml
 ```
 
+#### Port and camera index settings(mandatory)
 At minimum, update the `port` field(s) under `arms` to match your robot's serial port, and the `index` field(s) under `cameras` to match your connected cameras.
 
+#### Dataset recording settings (optional)
 To record episodes to a LeRobot dataset, uncomment the `dataset` section and update the fields as follows:
 - `dataset.repo_id` — the Hugging Face Hub repo where the dataset will be stored (e.g. `your-username/vr-episodes`)
 - `dataset.single_task` — a string describing the task being performed in the recorded episodes (e.g. "Pick and place the cube")
 - `dataset.push_to_hub` — set to true to automatically push the dataset to Hugging Face Hub on save. Run the following command to log in to your Hugging Face account before starting telerobot if you want to use this feature:
 ``` bash
-huggingface-cli login
+poetry run hf auth login --token  <YOUR_HF_TOKEN> --add-to-git-credential
 ```
 
-Other notable settings that you may want to play with:
+#### Other notable settings (optional):
 - `regularization` — adjust to increase/decrease the smoothness of the robot's motion (higher = smoother but less responsive) A regularization of 3.0e-3 or 4.0e-3 should allow you to move the controller fast all the way to the edge of it's reach without the arm shaking, but it also means that the arm will be less responsive to small controller movements.
 - `end_effector_step_sizes` — adjust to increase/decrease the robot's reach compared to the VR controller's movement (with values of { x: 0.8, y: 0.8, z: 0.8 }, the robot's end effector will move 80cm when you move the controller by 1m)
 
