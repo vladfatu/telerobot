@@ -12,17 +12,18 @@ I only tested with Quest 3, but it should work with Quest 2 as well. If you have
 curl -sSL https://install.python-poetry.org | python3 -
 ``` 
 and add Poetry's bin directory in to your PATH environment variable (as suggested by the installer) 
-- ### SSL certificates (required for HTTPS/WebRTC):
-Move to the project root and run:
-```bash
-mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
-```
 
 ## Install
 
 Move to the project directory and install dependencies:
 ```bash
 poetry install
+```
+
+- ## Generate SSL certificates (required for HTTPS/WebRTC):
+
+```bash
+mkdir -p ssl_cert && openssl req -x509 -newkey rsa:4096 -keyout ssl_cert/server.key -out ssl_cert/server.crt -days 365 -nodes -subj '/CN=localhost'
 ```
 
 ## Configuration
