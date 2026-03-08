@@ -1,5 +1,6 @@
 """Kinematics solvers for supported robot arm types."""
 
+import os
 from lerobot.model.kinematics import RobotKinematics
 
 from telerobot import PACKAGE_DIR
@@ -16,11 +17,26 @@ class SORobotKinematics(RobotKinematics):
     """
 
     def __init__(self, motor_names: list[str], regularization: float = 1e-3):
-        super().__init__(
-            urdf_path=str(PACKAGE_DIR / "simulation" / "SO101" / "so101_new_calib.urdf"),
-            target_frame_name="gripper_frame_link",
-            joint_names=motor_names,
-        )
+        # Suppress output during placo init to hide self-collision warnings.
+        # placo's C++ layer writes directly to fd 1/2, bypassing Python's sys.stdout/stderr,
+        # so we must redirect at the OS file-descriptor level.
+        with open(os.devnull, "w") as devnull:
+            devnull_fd = devnull.fileno()
+            saved_stdout_fd = os.dup(1)
+            saved_stderr_fd = os.dup(2)
+            try:
+                os.dup2(devnull_fd, 1)
+                os.dup2(devnull_fd, 2)
+                super().__init__(
+                    urdf_path=str(PACKAGE_DIR / "simulation" / "SO101" / "so101_new_calib.urdf"),
+                    target_frame_name="gripper_frame_link",
+                    joint_names=motor_names,
+                )
+            finally:
+                os.dup2(saved_stdout_fd, 1)
+                os.dup2(saved_stderr_fd, 2)
+                os.close(saved_stdout_fd)
+                os.close(saved_stderr_fd)
         # Regularization prevents singularity-induced oscillation at full extension.
         # The L2 penalty on ||dq||² keeps the QP well-conditioned so the solver
         # returns a stable, unique solution near workspace boundaries.

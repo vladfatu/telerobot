@@ -35,6 +35,7 @@ numpy = "^2.3.4"
 aiortc = "^1.8.0"
 aiohttp = "^3.10.0"
 aiohttp-cors = "^0.7.0"
+matplotlib = "^3.10.8"
 
 [build-system]
 requires = ["poetry-core"]

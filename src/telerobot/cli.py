@@ -50,7 +50,7 @@ def main():
     finalized_dataset = False
     push_to_hub = cfg.dataset.push_to_hub if cfg.dataset else False
 
-    log_message(logger, "Starting teleop loop. Move your phone to teleoperate the robot...")
+    log_message(logger, "Starting teleop loop. Connect your VR headset to teleoperate the robot...")
     loop_count = 0
 
     try:
