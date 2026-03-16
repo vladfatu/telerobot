@@ -2,6 +2,8 @@
 
 VR teleoperation for SO-ARM101 arms using a Meta Quest headset.
 
+https://github.com/user-attachments/assets/666a8bd1-4923-46d0-863d-0c314d126301
+
 ## Prerequisites
 
 - ### A Meta Quest headset 
