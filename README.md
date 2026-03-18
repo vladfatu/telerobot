@@ -116,4 +116,21 @@ Next you can move the arms by holding the controller's grip button and moving th
 
 https://github.com/user-attachments/assets/bc44cb32-9636-479b-9f5f-b350102e4e7e
 
+Try to move the arms around and get a feel for how they respond to the controller's movement. You can adjust the `regularization` and `end_effector_step_sizes` settings in the config file to find a balance between responsiveness and stability that works for you.
+
+## Dataset Recording
+
+To record an episode, press the Record button. Perform the desired task with the robot, then press the Save Episode button to save the episode to a LeRobot dataset and repeat for the next episode. After you record all the episodes you need, you can press the Save Dataset button to save the dataset and optionally push it to Hugging Face Hub if you enabled that feature in the config.
+
+
+https://github.com/user-attachments/assets/0fe03e12-4e4c-484b-948e-5e66431d1ead
+
+
+## Disabling Passthrough
+
+To record good episodes it can be helpful to see only what the robot sees without the passthrough video from the headset. To do this, you can disable the Passthrough toggle in the web interface to hide the passthrough feed and only see the robot's camera feeds. It will be harder to controll the robot this way, but you should get better results during training.
+
+
+https://github.com/user-attachments/assets/31be1a9b-55e2-443f-bd87-ab5510739faa
+
 
