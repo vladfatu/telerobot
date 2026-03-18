@@ -75,6 +75,9 @@ To use a custom config file:
 poetry run telerobot -c path/to/config.yaml
 ```
 
+https://github.com/user-attachments/assets/1990d541-111a-41ab-a6a5-b5ea5f172b12
+
+
 ## Calibration
 The first time you run telerobot, the arms will be in calibration mode. Follow the instructions in the terminal and move the arm to the middle of it's range and press enter. Then move each joint to the max and min positions and press enter. Do this for each arm.
 
