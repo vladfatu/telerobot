@@ -105,3 +105,5 @@ https://<YOUR_IP>:8765
 Replace `<YOUR_IP>` with your laptop's local IP (e.g. `192.168.1.42`).
 
 > Since the server uses self-signed SSL certificates, the browser will show a security warning on first connection — accept it to proceed.
+
+https://github.com/user-attachments/assets/0f598147-994a-441a-a1ba-5cb857851442
