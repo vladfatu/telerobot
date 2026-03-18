@@ -158,8 +158,8 @@ class BiController(Controller):
             joint_action = self.processors[side]((controller_obs, obs))
             arm.send_action(joint_action)
 
-            combined_obs.update(obs)
-            combined_action.update(joint_action)
+            combined_obs.update({f"{side}_{k}": v for k, v in obs.items()})
+            combined_action.update({f"{side}_{k}": v for k, v in joint_action.items()})
 
         # Add camera observations from the full robot
         full_obs = self.robot.get_observation()
