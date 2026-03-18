@@ -107,3 +107,13 @@ Replace `<YOUR_IP>` with your laptop's local IP (e.g. `192.168.1.42`).
 > Since the server uses self-signed SSL certificates, the browser will show a security warning on first connection — accept it to proceed.
 
 https://github.com/user-attachments/assets/0f598147-994a-441a-a1ba-5cb857851442
+
+
+## Connecting the Arms
+
+Press the AR button to enter WEBXR mode, then press the Connect button. 
+Next you can move the arms by holding the controller's grip button and moving the controller in the desired direction. The arm will follow the controller's movement with the end effector (the gripper) matching the controller's position and rotation. Move the joystick to open and close the gripper.
+
+https://github.com/user-attachments/assets/bc44cb32-9636-479b-9f5f-b350102e4e7e
+
+
