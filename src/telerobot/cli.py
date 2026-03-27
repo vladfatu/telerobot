@@ -1,4 +1,5 @@
 import argparse
+import json
 import time
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from lerobot.utils.visualization_utils import init_rerun, log_rerun_data  # noqa
 
 from telerobot.config import load_robot
 from telerobot.controller import build_controller
-from telerobot.dataset import setup_dataset, end_active_episode, record_step, finalize_dataset
+from telerobot.dataset import setup_dataset, end_active_episode, record_step, finalize_dataset, delete_episodes_from_dataset
 from telerobot.logger import get_logger, log_message, maybe_log_loop_timing
 from telerobot.server import setup_webxr_server, setup_websocket_server
 
@@ -19,14 +20,59 @@ def main():
     logger = get_logger()
 
     parser = argparse.ArgumentParser(description="Telerobot — VR teleoperation for SO-ARM101")
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command")
+
+    # --- run (default) ---
+    run_parser = subparsers.add_parser("run", help="Start the VR teleoperation loop")
+    run_parser.add_argument(
         "-c", "--config",
         default=DEFAULT_CONFIG_PATH,
         help=f"Path to YAML config file (default: {DEFAULT_CONFIG_PATH})",
     )
+
+    # --- delete-episodes ---
+    del_parser = subparsers.add_parser("delete-episodes", help="Delete episodes from a dataset")
+    del_parser.add_argument(
+        "--repo-id", required=True,
+        help="Repository ID of the dataset (e.g. 'user/dataset-name')",
+    )
+    del_parser.add_argument(
+        "--episodes", required=True,
+        help='Episode indices to delete as a JSON list, e.g. "[0, 2, 5]"',
+    )
+    del_parser.add_argument(
+        "--root", default=None,
+        help="Optional root directory override for the dataset",
+    )
+    del_parser.add_argument(
+        "--push-to-hub", action="store_true", default=False,
+        help="Push the updated dataset to the Hugging Face Hub after deletion",
+    )
+
     args = parser.parse_args()
 
-    duo_robot, cfg = load_robot(args.config)
+    # Default to "run" when no subcommand is given (backward-compatible)
+    if args.command is None:
+        args = run_parser.parse_args()
+        args.command = "run"
+
+    if args.command == "delete-episodes":
+        episode_indices = json.loads(args.episodes)
+        if not isinstance(episode_indices, list) or not all(isinstance(i, int) for i in episode_indices):
+            parser.error("--episodes must be a JSON list of integers, e.g. '[0, 2, 5]'")
+        delete_episodes_from_dataset(
+            repo_id=args.repo_id,
+            episode_indices=episode_indices,
+            root=args.root,
+            push_to_hub=args.push_to_hub,
+            logger=logger,
+        )
+        return
+
+    # --- run command ---
+
+    config_path = getattr(args, "config", DEFAULT_CONFIG_PATH)
+    duo_robot, cfg = load_robot(config_path)
 
     camera_server = setup_webxr_server(duo_robot, logger, dataset_configured=cfg.dataset is not None)
     teleop_device = setup_websocket_server()

@@ -134,3 +134,10 @@ To record good episodes it can be helpful to see only what the robot sees withou
 https://github.com/user-attachments/assets/31be1a9b-55e2-443f-bd87-ab5510739faa
 
 
+## Deleting Episodes
+To delete an episode, run the following command with the list of episodes you want to delete(you need to be logged in for --push-to-hub to work):
+
+```bash
+poetry run telerobot delete-episodes --repo-id <YOUR_HF_USERNAME>/vr_test_single_arm> --episodes "[0, 2, 5]" --push-to-hub
+```
+

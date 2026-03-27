@@ -2,6 +2,7 @@ import json
 import shutil
 from pathlib import Path
 
+from lerobot.datasets.dataset_tools import delete_episodes
 from lerobot.datasets.image_writer import safe_stop_image_writer
 from lerobot.datasets.lerobot_dataset import HF_LEROBOT_HOME, LeRobotDataset
 from lerobot.datasets.pipeline_features import (
@@ -83,6 +84,11 @@ def end_active_episode(
 ) -> None:
     """Save and close the current episode if recording is active."""
     if dataset is not None:
+        episode_buffer = getattr(dataset, "episode_buffer", None)
+        frame_indices = episode_buffer.get("frame_index", []) if isinstance(episode_buffer, dict) else []
+        if not frame_indices:
+            log_message(logger, "⚠️ No frames recorded, skipping empty episode.")
+            return
         dataset.save_episode()
         log_message(
             logger,
@@ -142,3 +148,61 @@ def finalize_dataset(dataset: LeRobotDataset | None, push_to_hub: bool, logger) 
         except Exception as e:
             log_message(logger, f"❌ Failed to push dataset to Hub: {e}")
             log_message(logger, "   Make sure you are logged in (run `huggingface-cli login`) or set HF_TOKEN.")
+
+
+def delete_episodes_from_dataset(
+    repo_id: str,
+    episode_indices: list[int],
+    root: str | None = None,
+    push_to_hub: bool = False,
+    logger=None,
+) -> None:
+    """Delete specific episodes from a LeRobot dataset.
+
+    The original dataset is replaced in-place: episodes are deleted into a
+    temporary copy which then replaces the original directory.
+
+    Args:
+        repo_id: Repository ID of the dataset (e.g. "user/dataset-name").
+        episode_indices: List of episode indices to delete.
+        root: Optional root directory override. If None, uses the default
+              HF_LEROBOT_HOME / repo_id location.
+        push_to_hub: If True, push the updated dataset to the Hugging Face Hub.
+        logger: Optional logger instance for status messages.
+    """
+    dataset_root = Path(root) if root is not None else HF_LEROBOT_HOME / repo_id
+
+    if not (dataset_root / "meta" / "info.json").exists():
+        raise FileNotFoundError(f"Dataset not found at {dataset_root}")
+
+    dataset = LeRobotDataset(repo_id=repo_id, root=root)
+    log_message(logger, f"📂 Loaded dataset: {repo_id} ({dataset.num_episodes} episodes, {dataset.num_frames} frames)")
+    log_message(logger, f"🗑️  Deleting episodes: {episode_indices}")
+
+    tmp_repo_id = f"{repo_id}_tmp_delete"
+    tmp_root = dataset_root.parent / f"{dataset_root.name}_tmp_delete"
+
+    try:
+        new_dataset = delete_episodes(
+            dataset=dataset,
+            episode_indices=episode_indices,
+            output_dir=tmp_root,
+            repo_id=tmp_repo_id,
+        )
+        log_message(logger, f"✅ New dataset has {new_dataset.num_episodes} episodes, {new_dataset.num_frames} frames")
+
+        # Replace original with the new dataset
+        shutil.rmtree(dataset_root)
+        tmp_root.rename(dataset_root)
+        log_message(logger, f"✅ Dataset at {dataset_root} updated in-place.")
+
+        if push_to_hub:
+            updated_dataset = LeRobotDataset(repo_id=repo_id, root=root)
+            log_message(logger, f"🚀 Pushing updated dataset '{repo_id}' to Hugging Face Hub...")
+            updated_dataset.push_to_hub(tags=["TeLeRobot"])
+            log_message(logger, f"✅ Dataset '{repo_id}' pushed successfully.")
+    except Exception:
+        # Clean up temp dir on failure
+        if tmp_root.exists():
+            shutil.rmtree(tmp_root)
+        raise
