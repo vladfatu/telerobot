@@ -20,6 +20,12 @@ AFRAME.registerComponent('vr-button', {
     this.isHovered = false;
     this.isPressed = false;
     this.baseColor = this.data.color;
+
+    // Safety: after a button fires once, require the controller ray
+    // to leave and re-enter before the button can fire again.
+    // This prevents the Reset button from repeatedly firing when the
+    // user keeps pointing at it and presses the trigger for gripper control.
+    this.mustRehoverBeforeNextPress = false;
     
     // Bind methods
     this.onTriggerChanged = this.onTriggerChanged.bind(this);
@@ -87,6 +93,7 @@ AFRAME.registerComponent('vr-button', {
     
     if (this.data.disabled) return;
     this.isHovered = false;
+    this.mustRehoverBeforeNextPress = false;  // Ray left; allow next click after re-hover.
     
     // Remove trigger listener from the controller
     if (this.hoveringRaycaster) {

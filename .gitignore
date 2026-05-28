@@ -209,3 +209,16 @@ __marimo__/
 
 # Local robot configuration (machine-specific, not committed to repo)
 config.yaml
+
+# TeLeRobot generated/runtime files
+_runtime/
+_dev_backups/
+_arm_only_config.yaml
+telerobot_calibration_backup/
+
+# Generated local HTTPS certificates
+ssl_cert/server.key
+ssl_cert/server.crt
+
+# Local environment/secrets
+.env
