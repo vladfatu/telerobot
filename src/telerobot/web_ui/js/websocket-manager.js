@@ -154,12 +154,13 @@ class WebSocketManager {
    * @param {number} joystickX - X-axis joystick value
    * @param {boolean} enabled - Whether the controller is enabled/grabbing
    */
-  updateControllerData(hand, pos, rot, joystickX = 0, enabled = false) {
+  updateControllerData(hand, pos, rot, joystickX = 0, enabled = false, extra = {}) {
     this.controllerData[hand] = {
       pos: pos,
       rot: rot,
       joystickX: joystickX,
-      enabled: enabled
+      enabled: enabled,
+      ...extra
     };
   }
 
@@ -182,6 +183,33 @@ class WebSocketManager {
       this.socket.send(JSON.stringify(payload));
     } catch (error) {
       console.error('❌ Failed to send controller data:', error);
+    }
+  }
+
+  /**
+   * Send live runtime control settings to the backend.
+   * @param {string} workspaceScale - "1:1 (Normal)" or "2:1 (Delicate)"
+   * @param {string} gripperTriggerMode - "Press Trigger to Close" or "Press Trigger to Open"
+   */
+  sendRuntimeSettings(workspaceScale, gripperTriggerMode) {
+    if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      console.warn('⚠️ Cannot send runtime settings: WebSocket not connected');
+      return false;
+    }
+
+    const payload = {
+      type: 'runtime_settings',
+      workspace_scale: workspaceScale,
+      gripper_trigger_mode: gripperTriggerMode
+    };
+
+    try {
+      this.socket.send(JSON.stringify(payload));
+      console.log('⚙️ Runtime settings sent from VR UI:', payload);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to send runtime settings:', error);
+      return false;
     }
   }
 

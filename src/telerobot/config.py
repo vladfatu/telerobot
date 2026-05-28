@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
+from lerobot.cameras.configs import Cv2Backends
 from lerobot.robots.robot import Robot
 from lerobot.robots.so_follower import SOFollower
 from lerobot.robots.so_follower.config_so_follower import SOFollowerConfig, SOFollowerRobotConfig
@@ -15,13 +16,34 @@ from lerobot.robots.bi_so_follower.config_bi_so_follower import BiSOFollowerConf
 from lerobot.robots.bi_so_follower.bi_so_follower import BiSOFollower
 
 
+def precision_mode_to_scales(mode: str) -> tuple[float, float]:
+    """Convert launcher workspace scale label into position/rotation sensitivity.
+
+    1:1 Normal   -> 1.0
+    2:1 Delicate -> 0.5
+    5:1 Surgery  -> 0.2
+    """
+    mode = (mode or "").lower()
+
+    if mode.startswith("5:1") or "surgery" in mode:
+        return 0.2, 0.2
+
+    if mode.startswith("2:1") or "delicate" in mode:
+        return 0.5, 0.5
+
+    return 1.0, 1.0
+
+
 @dataclass
 class CameraConfig:
     """Configuration for a single camera."""
-    index: int
+    index: int | str
     width: int = 640
     height: int = 480
     fps: int = 30
+    fourcc: str | None = "MJPG"
+    warmup_s: int = 15
+    backend: str = "V4L2"
 
 
 @dataclass
@@ -50,12 +72,24 @@ class DatasetConfig:
 
 
 @dataclass
+class TeleopConfig:
+    """Configuration for VR teleoperation behavior."""
+    speed: float = 100.0
+    smoothing: float = 5.0
+    precision_mode: str = "1:1 (Normal)"
+    position_scale: float = 1.0
+    rotation_scale: float = 1.0
+    gripper_trigger_mode: str = "Press Trigger to Close"
+
+
+@dataclass
 class RobotConfig:
     """Top-level robot configuration."""
     id: str
     fps: int
     cameras: dict[str, CameraConfig]
     arms: dict[str, ArmConfig]
+    teleop: TeleopConfig = field(default_factory=TeleopConfig)
     dataset: DatasetConfig | None = None
     use_rerun: bool = True
 
@@ -91,6 +125,9 @@ def load_config(path: str | Path) -> RobotConfig:
             width=cam.get("width", 640),
             height=cam.get("height", 480),
             fps=cam.get("fps", 30),
+            fourcc=cam.get("fourcc", "MJPG"),
+            warmup_s=cam.get("warmup_s", 15),
+            backend=cam.get("backend", "V4L2"),
         )
 
     # Parse arms
@@ -130,12 +167,27 @@ def load_config(path: str | Path) -> RobotConfig:
             push_to_hub=dataset_section.get("push_to_hub", False),
         )
 
+    # Parse teleop config
+    teleop_section = raw.get("teleop", {}) or {}
+    precision_mode = teleop_section.get("precision_mode", "1:1 (Normal)")
+    default_position_scale, default_rotation_scale = precision_mode_to_scales(precision_mode)
+
+    teleop_cfg = TeleopConfig(
+        speed=teleop_section.get("speed", 100.0),
+        smoothing=teleop_section.get("smoothing", 5.0),
+        precision_mode=precision_mode,
+        position_scale=teleop_section.get("position_scale", default_position_scale),
+        rotation_scale=teleop_section.get("rotation_scale", default_rotation_scale),
+        gripper_trigger_mode=teleop_section.get("gripper_trigger_mode", "Press Trigger to Close"),
+    )
+
     robot_section = raw.get("robot", {})
     return RobotConfig(
         id=robot_section.get("id", "duo_robot"),
         fps=robot_section.get("fps", 30),
         cameras=cameras,
         arms=arms,
+        teleop=teleop_cfg,
         dataset=dataset_cfg,
         use_rerun=robot_section.get("use_rerun", True),
     )
@@ -158,7 +210,13 @@ def load_robot(path: str | Path) -> tuple[Robot, RobotConfig]:
     # Build camera configs
     camera_configs = {
         name: OpenCVCameraConfig(
-            index_or_path=cam.index, width=cam.width, height=cam.height, fps=cam.fps
+            index_or_path=cam.index,
+            width=cam.width,
+            height=cam.height,
+            fps=cam.fps,
+            fourcc=cam.fourcc,
+            warmup_s=cam.warmup_s,
+            backend=getattr(Cv2Backends, cam.backend),
         )
         for name, cam in cfg.cameras.items()
     }

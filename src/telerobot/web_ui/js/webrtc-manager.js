@@ -6,6 +6,34 @@ const WebRTCManager = {
   serverUrl: window.location.origin,
   connections: {},
 
+  async waitForIceGatheringComplete(pc, timeoutMs = 5000) {
+    if (pc.iceGatheringState === 'complete') {
+      return;
+    }
+
+    console.log(`Waiting for ICE gathering. Current state: ${pc.iceGatheringState}`);
+
+    await new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('ICE gathering wait timed out; continuing with current candidates.');
+        pc.removeEventListener('icegatheringstatechange', checkState);
+        resolve();
+      }, timeoutMs);
+
+      function checkState() {
+        console.log(`ICE gathering state: ${pc.iceGatheringState}`);
+        if (pc.iceGatheringState === 'complete') {
+          clearTimeout(timeout);
+          pc.removeEventListener('icegatheringstatechange', checkState);
+          resolve();
+        }
+      }
+
+      pc.addEventListener('icegatheringstatechange', checkState);
+      checkState();
+    });
+  },
+
   /**
    * Fetch the list of available cameras from the server
    * @returns {Promise<string[]>} Array of camera names
@@ -38,8 +66,18 @@ const WebRTCManager = {
         videoElement.play().catch(e => console.log('Autoplay prevented:', e));
       };
 
+      let firefoxIceWarningShown = false;
       pc.oniceconnectionstatechange = () => {
         console.log(`ICE state for ${cameraName}: ${pc.iceConnectionState}`);
+
+        if (pc.iceConnectionState === 'failed' && !firefoxIceWarningShown) {
+          firefoxIceWarningShown = true;
+          console.error(
+            'Camera WebRTC connection failed. If using Firefox, open about:config and set ' +
+            'media.peerconnection.ice.obfuscate_host_addresses to false, then reload. ' +
+            'Alternatively try Microsoft Edge or Chrome.'
+          );
+        }
       };
 
       // Create offer
@@ -47,18 +85,22 @@ const WebRTCManager = {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      // This app does not implement trickle ICE, so wait until candidates are in the SDP.
+      await this.waitForIceGatheringComplete(pc);
+
       // Send offer to server
       const response = await fetch(`${this.serverUrl}/offer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sdp: offer.sdp,
-          type: offer.type,
+          sdp: pc.localDescription.sdp,
+          type: pc.localDescription.type,
           camera: cameraName
         })
       });
 
       const answer = await response.json();
+
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
 
       this.connections[cameraName] = pc;

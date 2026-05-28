@@ -28,6 +28,24 @@ AFRAME.registerComponent('controller-axes', {
     
     // Joystick X value (thumbstick left/right)
     this.joystickX = 0;
+
+    // Additional controller inputs forwarded to Python.
+    // Grip/enabled remains the sculpting control.
+    // Trigger will later control the gripper.
+    // A/B will later control base rotation.
+    this.triggerValue = 0;
+    this.buttonA = false;
+    this.buttonB = false;
+    this.buttonsRaw = [];
+
+    // Right thumbstick click-hold reset.
+    // Reset is intentionally moved away from the virtual trigger-click button
+    // because trigger is now used for gripper control.
+    this.thumbstickButtonPressed = false;
+    this.thumbstickResetHoldStart = null;
+    this.lastThumbstickResetTime = 0;
+    this.thumbstickResetHoldMs = 1000;
+    this.thumbstickResetCooldownMs = 8000;
     
     // Current delta values for WebSocket transmission
     this.currentDelta = {
@@ -39,6 +57,11 @@ AFRAME.registerComponent('controller-axes', {
     this.onGripDown = this.onGripDown.bind(this);
     this.onGripUp = this.onGripUp.bind(this);
     this.onThumbstickMoved = this.onThumbstickMoved.bind(this);
+    this.onTriggerChanged = this.onTriggerChanged.bind(this);
+    this.onAButtonDown = this.onAButtonDown.bind(this);
+    this.onAButtonUp = this.onAButtonUp.bind(this);
+    this.onBButtonDown = this.onBButtonDown.bind(this);
+    this.onBButtonUp = this.onBButtonUp.bind(this);
     
     // Listen for grip/squeeze button events
     this.el.addEventListener('gripdown', this.onGripDown);
@@ -49,19 +72,173 @@ AFRAME.registerComponent('controller-axes', {
     // Listen for thumbstick/joystick events
     this.el.addEventListener('thumbstickmoved', this.onThumbstickMoved);
     this.el.addEventListener('axismove', this.onThumbstickMoved);
+
+    // Listen for trigger and A/B button events.
+    this.el.addEventListener('triggerchanged', this.onTriggerChanged);
+    this.el.addEventListener('abuttondown', this.onAButtonDown);
+    this.el.addEventListener('abuttonup', this.onAButtonUp);
+    this.el.addEventListener('bbuttondown', this.onBButtonDown);
+    this.el.addEventListener('bbuttonup', this.onBButtonUp);
     
     this.createAxes();
     this.tick = AFRAME.utils.throttleTick(this.tick, 16, this); // ~60fps for smooth rotation
   },
 
   onThumbstickMoved: function(evt) {
-    // Get Y axis value from thumbstick (forward/backward)
-    // evt.detail.y is typically -1 (forward) to 1 (backward)
+    // Thumbstick left/right.
     if (evt.detail && typeof evt.detail.x === 'number') {
       this.joystickX = evt.detail.x;
     } else if (evt.detail && evt.detail.axis && evt.detail.axis.length >= 2) {
       // axismove event format: axis[0] = x, axis[1] = y
       this.joystickX = evt.detail.axis[0];
+    }
+  },
+
+  onTriggerChanged: function(evt) {
+    if (evt.detail && typeof evt.detail.value === 'number') {
+      this.triggerValue = evt.detail.value;
+    }
+  },
+
+  onAButtonDown: function() {
+    this.buttonA = true;
+  },
+
+  onAButtonUp: function() {
+    this.buttonA = false;
+  },
+
+  onBButtonDown: function() {
+    this.buttonB = true;
+  },
+
+  onBButtonUp: function() {
+    this.buttonB = false;
+  },
+
+  getControllerGamepad: function() {
+    // Different A-Frame controller components expose the underlying WebXR
+    // gamepad in slightly different places. Try several known locations.
+    const preferredComponents = [
+      'tracked-controls',
+      'oculus-touch-controls',
+      'meta-touch-controls',
+      'laser-controls'
+    ];
+
+    for (const name of preferredComponents) {
+      const component = this.el.components && this.el.components[name];
+      if (!component) continue;
+
+      if (component.controller && component.controller.gamepad) {
+        return component.controller.gamepad;
+      }
+
+      if (component.gamepad) {
+        return component.gamepad;
+      }
+    }
+
+    // Fallback: scan all components for controller.gamepad.
+    if (this.el.components) {
+      for (const name of Object.keys(this.el.components)) {
+        const component = this.el.components[name];
+
+        if (component && component.controller && component.controller.gamepad) {
+          return component.controller.gamepad;
+        }
+
+        if (component && component.gamepad) {
+          return component.gamepad;
+        }
+      }
+    }
+
+    return null;
+  },
+
+  pollGamepadInputs: function() {
+    const gamepad = this.getControllerGamepad();
+
+    if (!gamepad || !gamepad.buttons) {
+      return;
+    }
+
+    const buttons = gamepad.buttons;
+
+    // Store raw button state temporarily so Python logs can reveal the
+    // exact Quest button indices. This is useful for verifying A/B mapping.
+    this.buttonsRaw = Array.from(buttons).map((button) => ({
+      pressed: !!button.pressed,
+      touched: !!button.touched,
+      value: typeof button.value === 'number' ? button.value : 0
+    }));
+
+    const getButtonValue = (index) => {
+      const button = buttons[index];
+      if (!button) return 0;
+      if (typeof button.value === 'number') return button.value;
+      return button.pressed ? 1 : 0;
+    };
+
+    const getButtonPressed = (index) => {
+      const button = buttons[index];
+      if (!button) return false;
+      return !!button.pressed || getButtonValue(index) > 0.5;
+    };
+
+    // Common WebXR / Oculus Touch mapping:
+    // 0 = trigger, 1 = grip, 3 = thumbstick, 4 = A/X, 5 = B/Y
+    this.triggerValue = getButtonValue(0);
+
+    // Right controller usually maps 4/5 to A/B.
+    // Left controller usually maps 4/5 to X/Y, but we still expose them as
+    // buttonA/buttonB because the backend currently uses the right hand.
+    this.buttonA = getButtonPressed(4);
+    this.buttonB = getButtonPressed(5);
+
+    // Common WebXR mapping: index 3 = thumbstick click.
+    this.thumbstickButtonPressed = getButtonPressed(3);
+  },
+
+  handleThumbstickReset: function() {
+    // Only the right controller should trigger reset.
+    if (this.hand !== 'right') {
+      return;
+    }
+
+    const now = performance.now();
+
+    if (!this.thumbstickButtonPressed) {
+      this.thumbstickResetHoldStart = null;
+      return;
+    }
+
+    if (this.thumbstickResetHoldStart === null) {
+      this.thumbstickResetHoldStart = now;
+      return;
+    }
+
+    const heldMs = now - this.thumbstickResetHoldStart;
+    const sinceLastResetMs = now - this.lastThumbstickResetTime;
+
+    if (
+      heldMs >= this.thumbstickResetHoldMs &&
+      sinceLastResetMs >= this.thumbstickResetCooldownMs
+    ) {
+      if (window.webSocketManager && window.webSocketManager.isConnected) {
+        console.log('🔄 Thumbstick hold reset triggered');
+
+        window.webSocketManager.triggerAction('reset', 500).catch((error) => {
+          console.error('❌ Thumbstick reset failed:', error);
+        });
+
+        this.lastThumbstickResetTime = now;
+
+        // Keep the hold start at now so holding the stick cannot repeatedly
+        // trigger reset faster than the cooldown.
+        this.thumbstickResetHoldStart = now;
+      }
     }
   },
 
@@ -245,6 +422,10 @@ AFRAME.registerComponent('controller-axes', {
       this.zAxis.label.setAttribute('value', `${prefix}Z: ${displayZ.toFixed(0)}°`);
     }
     
+    // Refresh trigger/A/B/thumbstick-click state from WebXR gamepad before sending.
+    this.pollGamepadInputs();
+    this.handleThumbstickReset();
+
     // Send controller delta data via WebSocket if connected
     if (window.webSocketManager && window.webSocketManager.isConnected) {
       // Position as [x, y, z] array (delta when grabbing, zero otherwise)
@@ -266,7 +447,12 @@ AFRAME.registerComponent('controller-axes', {
         pos,
         rot,
         this.joystickX,
-        enabled
+        enabled,
+        {
+          trigger: this.triggerValue,
+          buttonA: this.buttonA,
+          buttonB: this.buttonB
+        }
       );
       
       // Send data (the manager will batch both controllers' data as FramePacket)
@@ -282,6 +468,11 @@ AFRAME.registerComponent('controller-axes', {
     this.el.removeEventListener('squeezeend', this.onGripUp);
     this.el.removeEventListener('thumbstickmoved', this.onThumbstickMoved);
     this.el.removeEventListener('axismove', this.onThumbstickMoved);
+    this.el.removeEventListener('triggerchanged', this.onTriggerChanged);
+    this.el.removeEventListener('abuttondown', this.onAButtonDown);
+    this.el.removeEventListener('abuttonup', this.onAButtonUp);
+    this.el.removeEventListener('bbuttondown', this.onBButtonDown);
+    this.el.removeEventListener('bbuttonup', this.onBButtonUp);
     
     if (this.axesContainer && this.axesContainer.parentNode) {
       this.axesContainer.parentNode.removeChild(this.axesContainer);

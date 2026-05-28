@@ -3,7 +3,6 @@ from telerobot.dataset.dataset import (
     end_active_episode,
     record_step,
     finalize_dataset,
-    delete_episodes_from_dataset,
 )
 
 __all__ = [
@@ -11,5 +10,4 @@ __all__ = [
     "end_active_episode",
     "record_step",
     "finalize_dataset",
-    "delete_episodes_from_dataset",
 ]
